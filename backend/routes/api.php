@@ -110,6 +110,26 @@ Route::middleware(['auth:sanctum', 'role:Super Admin|Admin|Editor|Analyst'])->pr
     Route::get('/analytics/search-intelligence', [\App\Http\Controllers\Api\V1\Admin\AnalyticsAdminController::class, 'searchIntelligence']);
     Route::get('/analytics/conversion', [\App\Http\Controllers\Api\V1\Admin\AnalyticsAdminController::class, 'conversionOverview']);
 
+    // Taxonomy & Brands
+    Route::get('/categories', [\App\Http\Controllers\Api\V1\Admin\TaxonomyAdminController::class, 'categories']);
+    Route::post('/categories', [\App\Http\Controllers\Api\V1\Admin\TaxonomyAdminController::class, 'storeCategory'])->middleware('role:Super Admin|Admin|Editor');
+    Route::put('/categories/{id}', [\App\Http\Controllers\Api\V1\Admin\TaxonomyAdminController::class, 'updateCategory'])->middleware('role:Super Admin|Admin|Editor');
+    Route::delete('/categories/{id}', [\App\Http\Controllers\Api\V1\Admin\TaxonomyAdminController::class, 'destroyCategory'])->middleware('role:Super Admin|Admin');
+
+    Route::get('/brands', [\App\Http\Controllers\Api\V1\Admin\TaxonomyAdminController::class, 'brands']);
+    Route::post('/brands', [\App\Http\Controllers\Api\V1\Admin\TaxonomyAdminController::class, 'storeBrand'])->middleware('role:Super Admin|Admin|Editor');
+    Route::put('/brands/{id}', [\App\Http\Controllers\Api\V1\Admin\TaxonomyAdminController::class, 'updateBrand'])->middleware('role:Super Admin|Admin|Editor');
+    Route::delete('/brands/{id}', [\App\Http\Controllers\Api\V1\Admin\TaxonomyAdminController::class, 'destroyBrand'])->middleware('role:Super Admin|Admin');
+
+    // Markets & Currencies
+    Route::get('/markets', [\App\Http\Controllers\Api\V1\Admin\MarketAdminController::class, 'markets']);
+    Route::put('/markets/{id}', [\App\Http\Controllers\Api\V1\Admin\MarketAdminController::class, 'updateMarket'])->middleware('role:Super Admin|Admin');
+    Route::get('/currencies', [\App\Http\Controllers\Api\V1\Admin\MarketAdminController::class, 'currencies']);
+
+    // Settings
+    Route::get('/settings', [\App\Http\Controllers\Api\V1\Admin\SettingsAdminController::class, 'index']);
+    Route::post('/settings', [\App\Http\Controllers\Api\V1\Admin\SettingsAdminController::class, 'update'])->middleware('role:Super Admin|Admin');
+
     // User & RBAC Management (Super Admin only)
     Route::get('/users', [UserAdminController::class, 'index'])->middleware('role:Super Admin');
     Route::post('/users', [UserAdminController::class, 'store'])->middleware('role:Super Admin');

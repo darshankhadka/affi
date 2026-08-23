@@ -43,9 +43,31 @@ export const Footer: React.FC<FooterProps> = ({ currentMarket }) => {
           <div>
             <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] mb-3">Platform Information</h4>
             <ul className="space-y-2 text-xs text-slate-500">
-              <li>Privacy Policy</li>
-              <li>Terms of Service</li>
-              <li>Affiliate Disclosure</li>
+              <li>
+                <Link href={`/${currentMarket}/about`} className="hover:text-emerald-600 transition-colors">
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link href={`/${currentMarket}/privacy`} className="hover:text-emerald-600 transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link href={`/${currentMarket}/terms`} className="hover:text-emerald-600 transition-colors">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link href={`/${currentMarket}/disclosure`} className="hover:text-emerald-600 transition-colors">
+                  Affiliate Disclosure
+                </Link>
+              </li>
+              <li>
+                <Link href={`/${currentMarket}/contact`} className="hover:text-emerald-600 transition-colors">
+                  Contact Us
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
