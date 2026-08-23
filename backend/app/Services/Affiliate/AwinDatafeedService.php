@@ -8,30 +8,112 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
+use ZipArchive;
 
 class AwinDatafeedService
 {
     /**
-     * Standard Awin Product Datafeed column list
+     * Comprehensive Awin Create-a-Feed column list
      */
-    public const DEFAULT_FEED_COLUMNS = [
-        'aw_product_id',
-        'product_name',
-        'description',
-        'search_price',
-        'merchant_image_url',
+    public const COMPREHENSIVE_FEED_COLUMNS = [
+        // CORE
         'aw_deep_link',
-        'merchant_deep_link',
-        'ean',
-        'upc',
-        'mpn',
-        'brand_name',
+        'product_name',
+        'aw_product_id',
+        'merchant_product_id',
+        'merchant_image_url',
+        'description',
+        'merchant_category',
+        'search_price',
+
+        // RECOMMENDED
         'merchant_name',
         'merchant_id',
         'category_name',
-        'in_stock',
-        'delivery_cost',
+        'category_id',
+        'aw_image_url',
         'currency',
+        'store_price',
+        'delivery_cost',
+        'merchant_deep_link',
+        'language',
+        'last_updated',
+        'display_price',
+        'data_feed_id',
+
+        // PRODUCT
+        'brand_name',
+        'brand_id',
+        'colour',
+        'product_short_description',
+        'specifications',
+        'condition',
+        'product_model',
+        'model_number',
+        'dimensions',
+        'keywords',
+        'promotional_text',
+        'product_type',
+
+        // CATEGORY
+        'commission_group',
+        'merchant_product_category_path',
+        'merchant_product_second_category',
+        'merchant_product_third_category',
+
+        // PRICES
+        'rrp_price',
+        'saving',
+        'savings_percent',
+        'base_price',
+        'base_price_amount',
+        'base_price_text',
+        'product_price_old',
+
+        // DELIVERY
+        'delivery_restrictions',
+        'delivery_weight',
+        'warranty',
+        'terms_of_contract',
+        'delivery_time',
+
+        // AVAILABILITY
+        'in_stock',
+        'stock_quantity',
+        'valid_from',
+        'valid_to',
+        'is_for_sale',
+        'web_offer',
+        'pre_order',
+        'stock_status',
+        'size_stock_status',
+        'size_stock_amount',
+
+        // IMAGES
+        'merchant_thumb_url',
+        'large_image',
+        'alternate_image',
+        'aw_thumb_url',
+        'alternate_image_two',
+        'alternate_image_three',
+        'alternate_image_four',
+
+        // RATINGS
+        'reviews',
+        'average_rating',
+        'rating',
+        'number_available',
+
+        // IDENTIFIERS
+        'ean',
+        'isbn',
+        'upc',
+        'mpn',
+        'parent_product_id',
+        'product_GTIN',
+
+        // OTHER
+        'basket_link',
     ];
 
     /**
@@ -119,7 +201,7 @@ class AwinDatafeedService
     }
 
     /**
-     * Build the standard Awin Product Datafeed download URL for an advertiser
+     * Resolve the feed URL for an advertiser
      */
     public function getFeedUrl(
         int|string $advertiserId,
@@ -127,9 +209,18 @@ class AwinDatafeedService
         ?string $apiKey = null,
         bool $gzip = true
     ): string {
-        $key = $apiKey ?: config('services.awin.datafeed_api_key', config('services.awin.api_token'));
+        $customUrl = config('services.awin.datafeed_url');
+        if (!empty($customUrl)) {
+            return $customUrl;
+        }
+
+        $key = $apiKey ?: config('services.awin.datafeed_api_key');
+        if (empty($key)) {
+            return '';
+        }
+
         $lang = in_array($market->code, ['gb', 'uk', 'ie']) ? 'en' : $market->code;
-        $cols = implode(',', self::DEFAULT_FEED_COLUMNS);
+        $cols = implode(',', self::COMPREHENSIVE_FEED_COLUMNS);
         $compression = $gzip ? 'compression/gzip/' : '';
 
         return "https://productdata.awin.com/datafeed/download/apikey/{$key}/language/{$lang}/mid/{$advertiserId}/columns/{$cols}/format/csv/delimiter/%2C/{$compression}";
@@ -143,13 +234,25 @@ class AwinDatafeedService
      *   content: ?string,
      *   http_status: int,
      *   content_type: ?string,
-     *   is_gzipped: bool,
+     *   compression: string,
      *   latency_ms: int,
      *   error: ?string
      * }
      */
     public function downloadFeed(string $feedUrl, int $timeoutSeconds = 30): array
     {
+        if (empty($feedUrl)) {
+            return [
+                'success' => false,
+                'content' => null,
+                'http_status' => 0,
+                'content_type' => null,
+                'compression' => 'none',
+                'latency_ms' => 0,
+                'error' => 'Awin Datafeed URL or Datafeed API Key is not configured (AWIN_DATAFEED_URL or AWIN_DATAFEED_API_KEY required).',
+            ];
+        }
+
         $startTime = microtime(true);
 
         try {
@@ -167,18 +270,18 @@ class AwinDatafeedService
                     'content' => null,
                     'http_status' => $status,
                     'content_type' => $contentType,
-                    'is_gzipped' => false,
+                    'compression' => 'none',
                     'latency_ms' => $latency,
                     'error' => "HTTP {$status}: " . substr($response->body(), 0, 300),
                 ];
             }
 
             $rawBody = $response->body();
-            $isGzipped = false;
+            $compression = 'none';
 
-            // Check if GZIP magic header (0x1f, 0x8b)
+            // 1. Detect GZIP magic header (0x1f, 0x8b)
             if (strlen($rawBody) >= 2 && substr($rawBody, 0, 2) === "\x1f\x8b") {
-                $isGzipped = true;
+                $compression = 'gzip';
                 $decoded = @gzdecode($rawBody);
                 if ($decoded !== false) {
                     $rawBody = $decoded;
@@ -188,9 +291,49 @@ class AwinDatafeedService
                         'content' => null,
                         'http_status' => $status,
                         'content_type' => $contentType,
-                        'is_gzipped' => true,
+                        'compression' => 'gzip',
                         'latency_ms' => $latency,
                         'error' => "Failed to decompress GZIP feed content.",
+                    ];
+                }
+            }
+            // 2. Detect ZIP magic header (PK\x03\x04)
+            elseif (strlen($rawBody) >= 4 && substr($rawBody, 0, 4) === "PK\x03\x04") {
+                $compression = 'zip';
+                $tmpZip = tempnam(sys_get_temp_dir(), 'awin_zip_');
+                file_put_contents($tmpZip, $rawBody);
+
+                $zip = new ZipArchive();
+                if ($zip->open($tmpZip) === true) {
+                    // Extract first file in zip
+                    $filename = $zip->getNameIndex(0);
+                    $extracted = $filename ? $zip->getFromIndex(0) : false;
+                    $zip->close();
+                    @unlink($tmpZip);
+
+                    if ($extracted !== false) {
+                        $rawBody = $extracted;
+                    } else {
+                        return [
+                            'success' => false,
+                            'content' => null,
+                            'http_status' => $status,
+                            'content_type' => $contentType,
+                            'compression' => 'zip',
+                            'latency_ms' => $latency,
+                            'error' => "Failed to extract CSV from ZIP feed archive.",
+                        ];
+                    }
+                } else {
+                    @unlink($tmpZip);
+                    return [
+                        'success' => false,
+                        'content' => null,
+                        'http_status' => $status,
+                        'content_type' => $contentType,
+                        'compression' => 'zip',
+                        'latency_ms' => $latency,
+                        'error' => "Could not open ZIP feed archive.",
                     ];
                 }
             }
@@ -200,7 +343,7 @@ class AwinDatafeedService
                 'content' => $rawBody,
                 'http_status' => $status,
                 'content_type' => $contentType,
-                'is_gzipped' => $isGzipped,
+                'compression' => $compression,
                 'latency_ms' => $latency,
                 'error' => null,
             ];
@@ -211,7 +354,7 @@ class AwinDatafeedService
                 'content' => null,
                 'http_status' => 0,
                 'content_type' => null,
-                'is_gzipped' => false,
+                'compression' => 'none',
                 'latency_ms' => $latency,
                 'error' => "Feed download failed: {$e->getMessage()}",
             ];
@@ -219,7 +362,7 @@ class AwinDatafeedService
     }
 
     /**
-     * Parse raw CSV / XML feed records streamingly with optional keyword filtering and bounding
+     * Parse raw CSV feed records streamingly with optional keyword filtering and bounding
      *
      * @return array<int, array<string, mixed>>
      */
@@ -232,7 +375,7 @@ class AwinDatafeedService
             return [];
         }
 
-        // Open string as stream
+        // Open string as streaming resource to avoid in-memory explosion
         $stream = fopen('php://memory', 'r+');
         fwrite($stream, $csvContent);
         rewind($stream);
@@ -244,7 +387,7 @@ class AwinDatafeedService
             return [];
         }
 
-        // Clean headers
+        // Clean headers: remove UTF-8 BOM, spaces, and quotes
         $cleanHeaders = array_map(function ($h) {
             return trim(str_replace(["\xEF\xBB\xBF", '"', "'"], '', (string) $h));
         }, $headers);
@@ -254,7 +397,7 @@ class AwinDatafeedService
 
         while (($row = fgetcsv($stream, 0, ',')) !== false) {
             if (count($row) !== count($cleanHeaders)) {
-                // Handle misaligned rows gracefully if possible
+                // Handle misaligned rows gracefully
                 if (count($row) < count($cleanHeaders)) {
                     $row = array_pad($row, count($cleanHeaders), null);
                 } else {
@@ -272,8 +415,10 @@ class AwinDatafeedService
                 $searchHaystack = strtolower(
                     ($record['product_name'] ?? '') . ' ' .
                     ($record['brand_name'] ?? '') . ' ' .
-                    ($record['description'] ?? '') . ' ' .
-                    ($record['category_name'] ?? '')
+                    ($record['merchant_category'] ?? '') . ' ' .
+                    ($record['category_name'] ?? '') . ' ' .
+                    ($record['keywords'] ?? '') . ' ' .
+                    ($record['description'] ?? '')
                 );
 
                 $allMatch = true;

@@ -25,12 +25,12 @@ class TestAwinFeedCommand extends Command
         $limit = min((int) $this->option('limit'), 50);
 
         $this->info("==================================================");
-        $this->info("ARIKARTECH — AWIN DATAFEED DIAGNOSTIC");
+        $this->info("ARIKARTECH — AWIN DATAFEED / CREATE-A-FEED TEST");
         $this->info("==================================================\n");
 
         $provider = AffiliateProvider::where('code', 'awin')->first();
         if (!$provider || !$providerConnector->isConnected($provider)) {
-            $this->error("Awin provider is not configured or missing credentials.");
+            $this->error("Awin provider is not configured or missing Publisher API credentials.");
             return Command::FAILURE;
         }
 
@@ -40,11 +40,15 @@ class TestAwinFeedCommand extends Command
             return Command::FAILURE;
         }
 
+        $this->line("Publisher API: <info>CONNECTED</info>");
+
         $programmes = $providerConnector->getJoinedProgrammes($provider);
         if (empty($programmes)) {
             $this->warn("No joined programmes found on Awin publisher account.");
             return Command::FAILURE;
         }
+
+        $this->line("Joined Programmes: <info>" . count($programmes) . "</info>");
 
         $advertiserId = $this->option('advertiser');
         $targetProgramme = null;
@@ -57,7 +61,6 @@ class TestAwinFeedCommand extends Command
                 }
             }
         } else {
-            // Find first programme matching market or first available
             $targetIso2 = strtoupper($market->code === 'uk' ? 'GB' : $market->code);
             foreach ($programmes as $p) {
                 $pCountry = strtoupper($p['primaryRegion']['countryCode'] ?? '');
@@ -80,8 +83,16 @@ class TestAwinFeedCommand extends Command
         $this->line("Advertiser Region: <comment>{$targetProgramme['primaryRegion']['countryCode']} ({$targetProgramme['currencyCode']})</comment>");
         $this->line("Target Market: <comment>{$market->name} ({$market->code})</comment>");
 
-        $feedUrl = config('services.awin.datafeed_url')
-            ?: $datafeedService->getFeedUrl($targetProgramme['id'], $market);
+        $feedUrl = $datafeedService->getFeedUrl($targetProgramme['id'], $market);
+
+        if (empty($feedUrl)) {
+            $this->line("Datafeed URL: <error>NOT CONFIGURED</error>");
+            $this->error("\nRESULT: AWIN PRODUCT DATAFEED = CONFIGURATION REQUIRED");
+            $this->line("<comment>The Awin Publisher API is authenticated, but no Create-a-Feed download URL or Datafeed API Key has been configured.</comment>");
+            $this->line("<comment>Please generate your feed URL in the Awin UI (Toolbox -> Create-a-Feed) and set:</comment>");
+            $this->line("<info>AWIN_DATAFEED_URL=https://productdata.awin.com/datafeed/download/apikey/YOUR_DATAFEED_KEY/...</info>");
+            return Command::FAILURE;
+        }
 
         // Mask API token in displayed URL
         $maskedUrl = preg_replace('/apikey\/[^\/]+/', 'apikey/********', $feedUrl);
@@ -91,17 +102,19 @@ class TestAwinFeedCommand extends Command
 
         $this->line("HTTP Status: <comment>" . $downloadResult['http_status'] . "</comment>");
         $this->line("Content-Type: <comment>" . ($downloadResult['content_type'] ?? 'unknown') . "</comment>");
-        $this->line("GZIP Compression: " . ($downloadResult['is_gzipped'] ? '<info>YES</info>' : '<comment>NO</comment>'));
+        $this->line("Compression: <comment>" . strtoupper($downloadResult['compression'] ?? 'none') . "</comment>");
         $this->line("Latency: <comment>" . $downloadResult['latency_ms'] . " ms</comment>");
 
         if (!$downloadResult['success']) {
             $status = $downloadResult['http_status'];
             if ($status === 401) {
-                $this->error("\nRESULT: INVALID CREDENTIALS (401 Unauthorized)");
+                $this->error("\nRESULT: INVALID DATAFEED CREDENTIALS (401 Unauthorized)");
             } elseif ($status === 403) {
                 $this->error("\nRESULT: FORBIDDEN / ACCESS DENIED (403 Forbidden)");
             } elseif ($status === 404) {
-                $this->error("\nRESULT: FEED NOT FOUND (404 Not Found)");
+                $this->error("\nRESULT: DATAFEED NOT FOUND / INVALID FEED URL (404 Not Found)");
+                $this->line("<comment>Explanation: The Awin Publisher API is connected, but the Create-a-Feed URL or Datafeed API Key for advertiser {$targetProgramme['id']} was not found on productdata.awin.com.</comment>");
+                $this->line("<comment>Please verify the exact download URL generated in Awin (Toolbox -> Create-a-Feed) and configure AWIN_DATAFEED_URL in backend/.env.</comment>");
             } else {
                 $this->error("\nRESULT: FEED DOWNLOAD ERROR");
             }

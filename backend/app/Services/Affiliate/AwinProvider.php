@@ -217,7 +217,7 @@ class AwinProvider implements AffiliateProviderInterface
     }
 
     /**
-     * Ingest products from real Awin Product Datafeeds for joined programmes in the target market
+     * Ingest products from real Awin Create-a-Feed / Product Datafeeds for joined programmes
      *
      * @return NormalizedProductDTO[]
      * @throws RuntimeException on API/network failure
@@ -242,7 +242,6 @@ class AwinProvider implements AffiliateProviderInterface
             return empty($pCountry) || $pCountry === $targetIso2 || $pCountry === 'EU' || $pCountry === 'GLOBAL';
         });
 
-        // If no region-specific match, check all active joined programmes
         if (empty($matchingProgrammes)) {
             $matchingProgrammes = $programmes;
         }
@@ -258,8 +257,12 @@ class AwinProvider implements AffiliateProviderInterface
             }
 
             $attemptedFeeds++;
-            $feedUrl = config('services.awin.datafeed_url')
-                ?: $this->datafeedService->getFeedUrl($prog['id'], $market);
+            $feedUrl = $this->datafeedService->getFeedUrl($prog['id'], $market);
+
+            if (empty($feedUrl)) {
+                $failedFeedErrors[] = "Advertiser {$prog['id']} ({$prog['name']}): Datafeed URL is not configured (set AWIN_DATAFEED_URL or AWIN_DATAFEED_API_KEY)";
+                continue;
+            }
 
             $downloadResult = $this->datafeedService->downloadFeed($feedUrl);
             if (!$downloadResult['success']) {
@@ -302,29 +305,41 @@ class AwinProvider implements AffiliateProviderInterface
         }
 
         if (empty($results) && !empty($failedFeedErrors) && $collectedCount === 0) {
-            throw new RuntimeException("Awin Datafeed unavailable for joined programmes. " . implode('; ', $failedFeedErrors) . ". Please verify AWIN_DATAFEED_API_KEY / AWIN_DATAFEED_URL in .env.");
+            throw new RuntimeException("Awin Datafeed unavailable for joined programmes. " . implode('; ', $failedFeedErrors) . ". Please verify AWIN_DATAFEED_URL / AWIN_DATAFEED_API_KEY in .env.");
         }
 
         return $results;
     }
 
+    /**
+     * Normalize real Awin feed row into canonical NormalizedProductDTO
+     */
     public function normalizeAwinItem(array $item, Market $market): ?NormalizedProductDTO
     {
-        $id = $item['aw_product_id'] ?? $item['id'] ?? $item['product_id'] ?? null;
+        $id = $item['aw_product_id'] ?? $item['merchant_product_id'] ?? $item['id'] ?? $item['product_id'] ?? null;
         $title = $item['product_name'] ?? $item['title'] ?? null;
 
         if (!$title || !$id) {
             return null;
         }
 
-        $brandName = $item['brand_name'] ?? $item['manufacturer'] ?? 'Generic';
-        $modelNumber = $item['model_number'] ?? $item['mpn'] ?? null;
-        $ean = $item['ean'] ?? $item['gtin'] ?? null;
+        $brandName = $item['brand_name'] ?? $item['brand_id'] ?? $item['manufacturer'] ?? 'Generic';
+        $modelNumber = $item['model_number'] ?? $item['product_model'] ?? $item['mpn'] ?? null;
+        $description = $item['description'] ?? $item['product_short_description'] ?? null;
+        $shortDesc = $item['product_short_description'] ?? substr($title, 0, 250);
+
+        // Identifiers in priority hierarchy
+        $gtin = $item['product_GTIN'] ?? null;
+        $ean = $gtin ?: ($item['ean'] ?? $item['isbn'] ?? null);
         $upc = $item['upc'] ?? null;
-        $mpn = $item['mpn'] ?? null;
-        $sku = (string) $id;
+        $mpn = $item['mpn'] ?? $modelNumber;
+        $merchantProductId = $item['merchant_product_id'] ?? null;
+        $awProductId = (string) $id;
 
         $identifiers = [];
+        if ($gtin) {
+            $identifiers[] = NormalizedIdentifierDTO::from('GTIN', (string) $gtin);
+        }
         if ($ean) {
             $identifiers[] = NormalizedIdentifierDTO::from('EAN', (string) $ean);
         }
@@ -334,47 +349,100 @@ class AwinProvider implements AffiliateProviderInterface
         if ($mpn) {
             $identifiers[] = NormalizedIdentifierDTO::from('MPN', (string) $mpn);
         }
-        $identifiers[] = NormalizedIdentifierDTO::from('SKU', $sku);
+        if ($merchantProductId) {
+            $identifiers[] = NormalizedIdentifierDTO::from('MERCHANT_SKU', (string) $merchantProductId);
+        }
+        $identifiers[] = NormalizedIdentifierDTO::from('SKU', $awProductId);
 
         // Price & Offer
-        $price = isset($item['search_price']) ? (float) $item['search_price'] : (isset($item['price']) ? (float) $item['price'] : 0.0);
-        $originalPrice = isset($item['retail_price']) ? (float) $item['retail_price'] : null;
-        $currency = $item['currency'] ?? $this->marketDefaults[$market->code]['currency'] ?? 'EUR';
-        $merchantName = $item['merchant_name'] ?? $item['advertiser_name'] ?? 'Awin Partner';
-        $merchantDomain = $item['merchant_domain'] ?? strtolower(str_replace(['http://', 'https://', 'www.', ' '], '', $merchantName)) . '.com';
-        $productUrl = $item['aw_deep_link'] ?? $item['deep_link'] ?? $item['product_url'] ?? '';
+        $price = isset($item['search_price']) ? (float) $item['search_price'] : (
+            isset($item['store_price']) ? (float) $item['store_price'] : (
+                isset($item['display_price']) ? (float) $item['display_price'] : (
+                    isset($item['price']) ? (float) $item['price'] : 0.0
+                )
+            )
+        );
 
+        $originalPrice = isset($item['rrp_price']) ? (float) $item['rrp_price'] : (
+            isset($item['product_price_old']) ? (float) $item['product_price_old'] : null
+        );
+
+        $currency = $item['currency'] ?? $this->marketDefaults[$market->code]['currency'] ?? 'EUR';
+        $merchantName = $item['merchant_name'] ?? $item['merchant_id'] ?? 'Awin Partner';
+        $merchantDomain = $item['merchant_domain'] ?? strtolower(str_replace(['http://', 'https://', 'www.', ' '], '', (string) $merchantName)) . '.com';
+
+        // Deep links
+        $affiliateUrl = $item['aw_deep_link'] ?? $item['deep_link'] ?? $item['product_url'] ?? '';
+        $originalUrl = $item['merchant_deep_link'] ?? $affiliateUrl;
+
+        // Stock / Availability
         $inStock = true;
         if (isset($item['in_stock'])) {
             $inStock = in_array(strtolower((string) $item['in_stock']), ['1', 'true', 'yes', 'in_stock', 'in stock', 'instock']);
+        } elseif (isset($item['stock_status'])) {
+            $inStock = strtolower((string) $item['stock_status']) !== 'out of stock';
+        } elseif (isset($item['is_for_sale'])) {
+            $inStock = in_array(strtolower((string) $item['is_for_sale']), ['1', 'true', 'yes']);
         }
+
+        // Delivery
+        $deliveryCost = isset($item['delivery_cost']) ? (float) $item['delivery_cost'] : 0.0;
 
         $offerDto = new NormalizedOfferDTO(
             retailerDomain: $merchantDomain,
             retailerName: $merchantName,
-            sku: $sku,
+            sku: $merchantProductId ?: $awProductId,
             title: $title,
             price: $price,
             originalPrice: $originalPrice,
-            currencyCode: strtoupper($currency),
+            currencyCode: strtoupper((string) $currency),
             availability: $inStock ? 'in_stock' : 'out_of_stock',
-            condition: 'new',
-            affiliateUrl: $productUrl,
-            originalUrl: $item['merchant_deep_link'] ?? $productUrl,
-            shippingCost: isset($item['delivery_cost']) ? (float) $item['delivery_cost'] : 0.0,
+            condition: isset($item['condition']) ? strtolower((string) $item['condition']) : 'new',
+            affiliateUrl: $affiliateUrl,
+            originalUrl: $originalUrl,
+            shippingCost: $deliveryCost,
             marketCode: $market->code
         );
 
+        // Images
         $images = [];
-        $imgUrl = $item['merchant_image_url'] ?? $item['image_url'] ?? $item['aw_image_url'] ?? null;
-        if (!empty($imgUrl)) {
-            $images[] = new NormalizedImageDTO($imgUrl, $title, true, 0);
+        $primaryImg = $item['merchant_image_url'] ?? $item['large_image'] ?? $item['aw_image_url'] ?? null;
+        if (!empty($primaryImg)) {
+            $images[] = new NormalizedImageDTO((string) $primaryImg, $title, true, 0);
         }
 
+        $extraImages = [
+            $item['alternate_image'] ?? null,
+            $item['alternate_image_two'] ?? null,
+            $item['alternate_image_three'] ?? null,
+            $item['alternate_image_four'] ?? null,
+            $item['merchant_thumb_url'] ?? null,
+        ];
+
+        $imgIndex = 1;
+        foreach ($extraImages as $extraImg) {
+            if (!empty($extraImg) && $extraImg !== $primaryImg) {
+                $images[] = new NormalizedImageDTO((string) $extraImg, $title, false, $imgIndex++);
+            }
+        }
+
+        // Specifications
         $specs = [];
+        if (!empty($item['colour'])) {
+            $specs[] = new NormalizedSpecificationDTO('Physical', 'Colour', (string) $item['colour']);
+        }
+        if (!empty($item['dimensions'])) {
+            $specs[] = new NormalizedSpecificationDTO('Physical', 'Dimensions', (string) $item['dimensions']);
+        }
+        if (!empty($item['delivery_weight'])) {
+            $specs[] = new NormalizedSpecificationDTO('Physical', 'Weight', (string) $item['delivery_weight']);
+        }
+        if (!empty($item['warranty'])) {
+            $specs[] = new NormalizedSpecificationDTO('General', 'Warranty', (string) $item['warranty']);
+        }
         if (!empty($item['specifications']) && is_array($item['specifications'])) {
             foreach ($item['specifications'] as $sName => $sVal) {
-                $specs[] = new NormalizedSpecificationDTO('General', (string) $sName, (string) $sVal);
+                $specs[] = new NormalizedSpecificationDTO('Technical', (string) $sName, (string) $sVal);
             }
         }
 
@@ -383,8 +451,8 @@ class AwinProvider implements AffiliateProviderInterface
             brandName: $brandName,
             categorySlug: null,
             modelNumber: $modelNumber,
-            description: $item['description'] ?? null,
-            shortDescription: substr($title, 0, 250),
+            description: $description,
+            shortDescription: $shortDesc,
             canonicalUpc: $upc ? (string) $upc : null,
             canonicalEan: $ean ? (string) $ean : null,
             canonicalMpn: $mpn ? (string) $mpn : null,
@@ -393,7 +461,7 @@ class AwinProvider implements AffiliateProviderInterface
             images: $images,
             offer: $offerDto,
             providerCode: 'awin',
-            externalId: $sku
+            externalId: $awProductId
         );
     }
 
