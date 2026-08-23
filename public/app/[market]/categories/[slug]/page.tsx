@@ -53,16 +53,16 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   return (
     <div className="space-y-8">
       {/* Category Header */}
-      <div className="glass-card rounded-3xl p-8 space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-semibold">
+      <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold">
           <Layers className="w-3.5 h-3.5" />
           <span>Category Discovery</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-slate-100 tracking-tight">
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
           {category.name} Price Comparison
         </h1>
         {category.description && (
-          <p className="text-xs text-slate-400 max-w-2xl">{category.description}</p>
+          <p className="text-xs text-slate-500 max-w-2xl">{category.description}</p>
         )}
       </div>
 

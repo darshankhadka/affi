@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Flame,
   FileCode2,
+  Sparkles,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -56,19 +57,27 @@ export const Sidebar: React.FC = () => {
       ],
     },
     {
-      title: 'OFFERS',
+      title: 'PRICES',
       items: [
-        { name: 'Offers', href: '/offers', icon: <BadgePercent className="w-4 h-4" /> },
         { name: 'Best Prices', href: '/offers/best-prices', icon: <TrendingDown className="w-4 h-4" /> },
+        { name: 'Offers', href: '/offers', icon: <BadgePercent className="w-4 h-4" /> },
         { name: 'Price History', href: '/offers/history', icon: <History className="w-4 h-4" /> },
       ],
     },
     {
       title: 'AFFILIATES',
       items: [
-        { name: 'Providers', href: '/affiliates/providers', icon: <Network className="w-4 h-4" /> },
+        { name: 'Networks & Providers', href: '/affiliates/providers', icon: <Network className="w-4 h-4" /> },
         { name: 'Retailers', href: '/affiliates/retailers', icon: <Store className="w-4 h-4" /> },
         { name: 'Performance', href: '/affiliates/performance', icon: <LineChart className="w-4 h-4" /> },
+      ],
+    },
+    {
+      title: 'SEO & INTELLIGENCE',
+      items: [
+        { name: 'SEO Overview', href: '/seo', icon: <Globe2 className="w-4 h-4" /> },
+        { name: 'Search Intelligence', href: '/search', icon: <Search className="w-4 h-4" /> },
+        { name: 'Buying Guides', href: '/content/guides', icon: <BookOpen className="w-4 h-4" /> },
       ],
     },
     {
@@ -76,46 +85,28 @@ export const Sidebar: React.FC = () => {
       items: [
         { name: 'Traffic', href: '/analytics/traffic', icon: <BarChart3 className="w-4 h-4" /> },
         { name: 'Affiliate Clicks', href: '/analytics/clicks', icon: <MousePointerClick className="w-4 h-4" /> },
-        { name: 'Revenue', href: '/analytics/revenue', icon: <DollarSign className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: 'SEARCH',
-      items: [
-        { name: 'Search Overview', href: '/search', icon: <Search className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: 'CONTENT',
-      items: [
-        { name: 'Buying Guides & Deals', href: '/content/guides', icon: <BookOpen className="w-4 h-4" /> },
-      ],
-    },
-    {
-      title: 'SEO',
-      items: [
-        { name: 'SEO & Redirects', href: '/seo', icon: <Globe2 className="w-4 h-4" /> },
+        { name: 'Revenue Reporting', href: '/analytics/revenue', icon: <DollarSign className="w-4 h-4" /> },
       ],
     },
     {
       title: 'AUTOMATION',
       items: [
-        { name: 'Status & Jobs', href: '/automation', icon: <Cpu className="w-4 h-4" /> },
+        { name: 'Sync Jobs & Health', href: '/automation', icon: <Cpu className="w-4 h-4" /> },
       ],
     },
     {
-      title: 'SETTINGS',
+      title: 'SYSTEM',
       items: [
-        { name: 'General & Markets', href: '/settings', icon: <Settings className="w-4 h-4" /> },
+        { name: 'Settings & Markets', href: '/settings', icon: <Settings className="w-4 h-4" /> },
         { name: 'Users & Roles', href: '/settings/users', icon: <Users className="w-4 h-4" /> },
       ],
     },
   ];
 
   return (
-    <aside className="w-64 shrink-0 bg-slate-950/90 border-r border-slate-800/80 flex flex-col h-screen overflow-y-auto">
+    <aside className="w-64 shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col h-screen overflow-y-auto">
       {/* Brand Header */}
-      <div className="p-6 border-b border-slate-800/80 flex items-center gap-3">
+      <div className="p-5 border-b border-slate-800 flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-black text-slate-950 shadow-lg shadow-emerald-500/20">
           A
         </div>
@@ -126,10 +117,10 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Navigation Links */}
-      <div className="px-4 py-6 space-y-6 flex-1">
+      <div className="px-3 py-5 space-y-5 flex-1">
         {sections.map((section, idx) => (
           <div key={idx} className="space-y-1">
-            <h2 className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <h2 className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               {section.title}
             </h2>
             <div className="space-y-0.5 pt-1">

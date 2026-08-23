@@ -28,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -37,7 +37,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-[#070b14] text-slate-100 min-h-screen flex flex-col font-sans">
+      <body className="bg-slate-50 text-slate-900 min-h-screen flex flex-col font-sans antialiased">
         <GoogleAnalytics />
         {children}
       </body>

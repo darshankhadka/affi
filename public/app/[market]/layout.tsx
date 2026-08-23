@@ -15,6 +15,12 @@ export default async function MarketLayout({ children, params }: MarketLayoutPro
     { code: 'us', name: 'United States' },
     { code: 'uk', name: 'United Kingdom' },
     { code: 'de', name: 'Germany' },
+    { code: 'fr', name: 'France' },
+    { code: 'es', name: 'Spain' },
+    { code: 'it', name: 'Italy' },
+    { code: 'nl', name: 'Netherlands' },
+    { code: 'au', name: 'Australia' },
+    { code: 'nz', name: 'New Zealand' },
   ];
 
   let categories = [

@@ -69,28 +69,28 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const currencySymbol = bestPrice?.currency?.symbol || '$';
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-10">
       {structuredData && <StructuredData data={structuredData} />}
 
       {/* Breadcrumb Bar */}
-      <nav className="flex items-center gap-2 text-xs text-slate-400">
-        <Link href={`/${market}`} className="hover:text-emerald-400">Home</Link>
-        <ChevronRight className="w-3 h-3 text-slate-600" />
+      <nav className="flex items-center gap-2 text-xs text-slate-500">
+        <Link href={`/${market}`} className="hover:text-emerald-600">Home</Link>
+        <ChevronRight className="w-3 h-3 text-slate-400" />
         {product.category && (
           <>
-            <Link href={`/${market}/categories/${product.category.slug}`} className="hover:text-emerald-400">
+            <Link href={`/${market}/categories/${product.category.slug}`} className="hover:text-emerald-600">
               {product.category.name}
             </Link>
-            <ChevronRight className="w-3 h-3 text-slate-600" />
+            <ChevronRight className="w-3 h-3 text-slate-400" />
           </>
         )}
-        <span className="text-slate-200 truncate max-w-xs">{product.name}</span>
+        <span className="text-slate-800 font-medium truncate max-w-xs">{product.name}</span>
       </nav>
 
       {/* Top Hero: Product Overview & Best Price Highlights */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left: Product Images */}
-        <div className="lg:col-span-5 glass-card rounded-3xl p-8 flex items-center justify-center border border-slate-800 relative aspect-[4/3] bg-slate-900/60">
+        <div className="lg:col-span-5 bg-white rounded-3xl p-8 flex items-center justify-center border border-slate-200 shadow-sm relative aspect-[4/3]">
           {product.primary_image?.url ? (
             <img
               src={product.primary_image.url}
@@ -98,9 +98,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
               className="object-contain w-full h-full p-4"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-slate-500 gap-3">
-              <Laptop className="w-16 h-16 text-slate-600" />
-              <span className="text-xs font-mono uppercase tracking-widest text-slate-500">
+            <div className="flex flex-col items-center justify-center text-slate-400 gap-3">
+              <Laptop className="w-16 h-16 text-slate-300" />
+              <span className="text-xs font-mono uppercase tracking-widest text-slate-400">
                 {product.brand?.name || 'Verified Tech'}
               </span>
             </div>
@@ -108,57 +108,57 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
 
         {/* Right: Key Specs & Price Summary */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-7 space-y-5">
           <div>
             <div className="flex items-center gap-3 mb-2">
               {product.brand && (
-                <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-xs font-bold uppercase">
+                <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono text-xs font-bold uppercase">
                   {product.brand.name}
                 </span>
               )}
               {product.model_number && (
-                <span className="text-xs text-slate-400 font-mono">
+                <span className="text-xs text-slate-500 font-mono">
                   Model: {product.model_number}
                 </span>
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-100 tracking-tight leading-tight">
+            <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
               {product.name}
             </h1>
           </div>
 
           {/* Best Price Banner Card */}
-          <div className="glass-card rounded-2xl p-6 border-emerald-500/30 bg-emerald-950/10 space-y-3">
+          <div className="bg-emerald-50/50 rounded-2xl p-6 border border-emerald-200 space-y-3 shadow-sm">
             <div className="flex items-baseline justify-between">
               <div>
-                <span className="text-xs uppercase font-bold text-slate-400 block tracking-wider">
-                  Lowest Verified Price
+                <span className="text-xs uppercase font-bold text-slate-600 block tracking-wider">
+                  Best Price We Found
                 </span>
                 {bestPrice && bestPrice.min_price > 0 ? (
-                  <span className="text-3xl sm:text-4xl font-black text-emerald-400">
+                  <span className="text-3xl sm:text-4xl font-black text-emerald-700">
                     {currencySymbol}{Number(bestPrice.min_price).toFixed(2)}
                   </span>
                 ) : (
-                  <span className="text-xl font-bold text-slate-300">Compare Stores Below</span>
+                  <span className="text-xl font-bold text-slate-700">Compare Stores Below</span>
                 )}
               </div>
 
               {offers.length > 0 && (
-                <span className="px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300">
+                <span className="px-3 py-1 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-700 shadow-xs">
                   {offers.length} {offers.length === 1 ? 'Store Offer' : 'Store Offers'}
                 </span>
               )}
             </div>
 
-            <p className="text-xs text-slate-400">
-              Prices compared across authorized retailers in {market.toUpperCase()}. Updated continuously with automated rate-limited checks.
+            <p className="text-xs text-slate-600">
+              Prices compared across verified retailers in {market.toUpperCase()}. Continuously refreshed with rate-limited checks.
             </p>
           </div>
 
           {/* Description */}
           {product.description && (
-            <div className="prose prose-invert prose-xs text-slate-300 leading-relaxed max-w-none">
+            <div className="prose prose-xs text-slate-600 leading-relaxed max-w-none">
               <p>{product.description}</p>
             </div>
           )}
@@ -166,15 +166,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </div>
 
       {/* Main Section: Retailer Price Comparison Engine */}
-      <section className="space-y-6 pt-6">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+      <section className="space-y-5 pt-4">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <Tag className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Tag className="w-5 h-5 text-emerald-600" />
               Compare Retailer Offers & Prices
             </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Select an authorized seller to view current in-stock availability and deals.
+            <p className="text-xs text-slate-500 mt-1">
+              Select a verified seller to view current in-stock availability and deals.
             </p>
           </div>
         </div>
@@ -184,25 +184,25 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       {/* Hardware Specifications Grid */}
       {product.specifications && product.specifications.length > 0 && (
-        <section className="space-y-6 pt-6">
-          <div className="border-b border-slate-800 pb-4">
-            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-emerald-400" />
+        <section className="space-y-5 pt-4">
+          <div className="border-b border-slate-200 pb-4">
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-emerald-600" />
               Technical Specifications
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {product.specifications.map((group: any, idx: number) => (
-              <div key={idx} className="glass-card rounded-2xl p-6 space-y-4">
-                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider font-mono">
+              <div key={idx} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+                <h3 className="text-sm font-bold text-emerald-700 uppercase tracking-wider font-mono">
                   {group.group}
                 </h3>
-                <dl className="divide-y divide-slate-800/60 text-xs">
+                <dl className="divide-y divide-slate-100 text-xs">
                   {group.items.map((item: any, sIdx: number) => (
                     <div key={sIdx} className="py-2.5 flex justify-between gap-4">
-                      <dt className="text-slate-400">{item.name}</dt>
-                      <dd className="font-semibold text-slate-200 text-right">{item.value}</dd>
+                      <dt className="text-slate-500">{item.name}</dt>
+                      <dd className="font-semibold text-slate-800 text-right">{item.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -214,29 +214,29 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       {/* Real Price History Section */}
       {product.price_history && product.price_history.length > 0 && (
-        <section className="space-y-6 pt-6">
-          <div className="border-b border-slate-800 pb-4">
-            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+        <section className="space-y-5 pt-4">
+          <div className="border-b border-slate-200 pb-4">
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
               Verified Price History & Volatility
             </h2>
           </div>
 
-          <div className="glass-card rounded-2xl p-6 overflow-x-auto">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-500 font-mono">
+                <tr className="border-b border-slate-200 text-slate-500 font-mono">
                   <th className="pb-3">Recorded Date</th>
                   <th className="pb-3">Price</th>
                   <th className="pb-3">Availability</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-slate-100 font-mono">
                 {product.price_history.slice(-10).map((ph: any, pIdx: number) => (
                   <tr key={pIdx}>
-                    <td className="py-2.5 text-slate-400">{new Date(ph.recorded_at).toLocaleDateString()}</td>
-                    <td className="py-2.5 text-emerald-400 font-bold">{currencySymbol}{Number(ph.price).toFixed(2)}</td>
-                    <td className="py-2.5 text-slate-300 capitalize">{ph.availability}</td>
+                    <td className="py-2.5 text-slate-600">{new Date(ph.recorded_at).toLocaleDateString()}</td>
+                    <td className="py-2.5 text-emerald-700 font-bold">{currencySymbol}{Number(ph.price).toFixed(2)}</td>
+                    <td className="py-2.5 text-slate-700 capitalize">{ph.availability}</td>
                   </tr>
                 ))}
               </tbody>

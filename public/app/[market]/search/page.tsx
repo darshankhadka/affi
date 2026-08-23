@@ -34,15 +34,15 @@ export default async function SearchPage({ params, searchParams }: SearchPagePro
 
   return (
     <div className="space-y-8">
-      <div className="glass-card rounded-3xl p-8 space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-semibold">
+      <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold">
           <Search className="w-3.5 h-3.5" />
           <span>Catalog Search</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-slate-100 tracking-tight">
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
           {q ? `Search Results for "${q}"` : 'Hardware Search'}
         </h1>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-500">
           {products.length} {products.length === 1 ? 'matching item' : 'matching items'} found in {market.toUpperCase()} market.
         </p>
       </div>
