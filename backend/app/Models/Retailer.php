@@ -15,11 +15,14 @@ class Retailer extends Model
         'domain',
         'logo_url',
         'affiliate_provider_id',
+        'affiliate_program_id',
         'is_active',
+        'metadata',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'metadata' => 'array',
     ];
 
     public function affiliateProvider()

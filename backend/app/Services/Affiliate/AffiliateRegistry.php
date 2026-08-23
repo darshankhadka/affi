@@ -11,9 +11,16 @@ class AffiliateRegistry
      */
     protected array $providers = [];
 
-    public function __construct()
-    {
-        $this->register(new AmazonProvider());
+    public function __construct(
+        ?AmazonProvider $amazon = null,
+        ?AwinProvider $awin = null,
+        ?CjProvider $cj = null,
+        ?ImpactProvider $impact = null
+    ) {
+        $this->register($amazon ?? new AmazonProvider());
+        $this->register($awin ?? new AwinProvider());
+        $this->register($cj ?? new CjProvider());
+        $this->register($impact ?? new ImpactProvider());
     }
 
     public function register(AffiliateProviderInterface $provider): void

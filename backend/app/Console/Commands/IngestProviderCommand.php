@@ -89,29 +89,27 @@ class IngestProviderCommand extends Command
         $errorLog = [];
 
         try {
-            if ($connector instanceof AmazonProvider) {
-                $normalizedProducts = $connector->searchItems($keywords, $market, null, $limit);
-                $job->update(['total_items' => count($normalizedProducts)]);
+            $normalizedProducts = $connector->searchProducts($keywords, $market, null, $limit);
+            $job->update(['total_items' => count($normalizedProducts)]);
 
-                foreach ($normalizedProducts as $dto) {
-                    try {
-                        $res = $ingestionService->ingest($dto, $market);
-                        if ($res['success']) {
-                            if ($res['action'] === 'created_product') {
-                                $created++;
-                            } else {
-                                $matched++;
-                            }
+            foreach ($normalizedProducts as $dto) {
+                try {
+                    $res = $ingestionService->ingest($dto, $market);
+                    if ($res['success']) {
+                        if ($res['action'] === 'created_product') {
+                            $created++;
                         } else {
-                            $failed++;
-                            if (!empty($res['error'])) {
-                                $errorLog[] = $res['error'];
-                            }
+                            $matched++;
                         }
-                    } catch (Throwable $e) {
+                    } else {
                         $failed++;
-                        $errorLog[] = "Ingestion error for '{$dto->name}': " . $e->getMessage();
+                        if (!empty($res['error'])) {
+                            $errorLog[] = $res['error'];
+                        }
                     }
+                } catch (Throwable $e) {
+                    $failed++;
+                    $errorLog[] = "Ingestion error for '{$dto->name}': " . $e->getMessage();
                 }
             }
 

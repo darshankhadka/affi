@@ -49,4 +49,21 @@ return [
         ],
     ],
 
+    'awin' => [
+        'api_token' => env('AWIN_API_TOKEN'),
+        'publisher_id' => env('AWIN_PUBLISHER_ID'),
+    ],
+
+    'cj' => [
+        'api_token' => env('CJ_API_TOKEN'),
+        'company_id' => env('CJ_COMPANY_ID'),
+        'website_id' => env('CJ_WEBSITE_ID'),
+    ],
+
+    'impact' => [
+        'account_sid' => env('IMPACT_ACCOUNT_SID'),
+        'auth_token' => env('IMPACT_AUTH_TOKEN'),
+        'media_partner_id' => env('IMPACT_MEDIA_PARTNER_ID'),
+    ],
+
 ];

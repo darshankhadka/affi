@@ -489,6 +489,26 @@ class AmazonProvider implements AffiliateProviderInterface
         ];
     }
 
+    public function searchProducts(string $keywords, Market $market, ?string $category = null, int $limit = 20): array
+    {
+        return $this->searchItems($keywords, $market, $category, $limit);
+    }
+
+    public function getSupportedMarkets(): array
+    {
+        return ['us', 'uk', 'de', 'fr', 'es', 'it', 'au'];
+    }
+
+    public function getSupportedCurrencies(): array
+    {
+        return ['USD', 'GBP', 'EUR', 'AUD'];
+    }
+
+    public function getSupportedCategories(): array
+    {
+        return ['Electronics', 'Computers', 'PC Components', 'Smartphones', 'Networking'];
+    }
+
     public function getRateLimit(): int
     {
         return 60; // 1 request per second

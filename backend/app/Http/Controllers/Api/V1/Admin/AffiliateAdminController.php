@@ -108,4 +108,36 @@ class AffiliateAdminController extends BaseApiController
 
         return $this->success($result, 'Provider connection test executed.');
     }
+
+    /**
+     * Trigger a bounded sync for a provider in a given market
+     */
+    public function triggerSync(Request $request, int $id, \App\Services\Affiliate\AffiliateRegistry $registry): JsonResponse
+    {
+        $provider = AffiliateProvider::findOrFail($id);
+
+        $marketCode = $request->input('market', 'us');
+        $limit = min((int) $request->input('limit', 25), 50);
+        $keywords = $request->input('keywords', 'Laptops');
+
+        if (!$registry->has($provider->code)) {
+            return $this->error("Provider driver for '{$provider->code}' is not loaded.", 400);
+        }
+
+        $exitCode = \Illuminate\Support\Facades\Artisan::call('automation:ingest-provider', [
+            '--provider' => $provider->code,
+            '--market' => $marketCode,
+            '--limit' => $limit,
+            '--keywords' => $keywords,
+        ]);
+
+        $output = \Illuminate\Support\Facades\Artisan::output();
+
+        $provider->update(['last_sync_at' => now()]);
+
+        return $this->success([
+            'exit_code' => $exitCode,
+            'output' => trim($output),
+        ], 'Provider sync batch completed.');
+    }
 }

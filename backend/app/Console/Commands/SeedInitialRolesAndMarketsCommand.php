@@ -77,16 +77,17 @@ class SeedInitialRolesAndMarketsCommand extends Command
         $aud = Currency::firstOrCreate(['code' => 'AUD'], ['name' => 'Australian Dollar', 'symbol' => 'A$', 'rate_to_usd' => 0.66, 'decimals' => 2, 'is_active' => true]);
         $nzd = Currency::firstOrCreate(['code' => 'NZD'], ['name' => 'New Zealand Dollar', 'symbol' => 'NZ$', 'rate_to_usd' => 0.61, 'decimals' => 2, 'is_active' => true]);
 
-        // 4. Default Target Markets (US, UK, DE, FR, ES, IT, AU, NZ)
+        // 4. Default Target Markets (US, UK, DE, FR, ES, IT, NL, AU, NZ)
         $marketsData = [
             ['code' => 'us', 'name' => 'United States', 'default_currency_id' => $usd->id, 'locale' => 'en-US', 'hreflang' => 'en-us', 'is_active' => true, 'display_order' => 1],
             ['code' => 'uk', 'name' => 'United Kingdom', 'default_currency_id' => $gbp->id, 'locale' => 'en-GB', 'hreflang' => 'en-gb', 'is_active' => true, 'display_order' => 2],
             ['code' => 'de', 'name' => 'Germany', 'default_currency_id' => $eur->id, 'locale' => 'de-DE', 'hreflang' => 'de', 'is_active' => true, 'display_order' => 3],
-            ['code' => 'fr', 'name' => 'France', 'default_currency_id' => $eur->id, 'locale' => 'fr-FR', 'hreflang' => 'fr', 'is_active' => false, 'display_order' => 4],
-            ['code' => 'es', 'name' => 'Spain', 'default_currency_id' => $eur->id, 'locale' => 'es-ES', 'hreflang' => 'es', 'is_active' => false, 'display_order' => 5],
-            ['code' => 'it', 'name' => 'Italy', 'default_currency_id' => $eur->id, 'locale' => 'it-IT', 'hreflang' => 'it', 'is_active' => false, 'display_order' => 6],
-            ['code' => 'au', 'name' => 'Australia', 'default_currency_id' => $aud->id, 'locale' => 'en-AU', 'hreflang' => 'en-au', 'is_active' => false, 'display_order' => 7],
-            ['code' => 'nz', 'name' => 'New Zealand', 'default_currency_id' => $nzd->id, 'locale' => 'en-NZ', 'hreflang' => 'en-nz', 'is_active' => false, 'display_order' => 8],
+            ['code' => 'fr', 'name' => 'France', 'default_currency_id' => $eur->id, 'locale' => 'fr-FR', 'hreflang' => 'fr', 'is_active' => true, 'display_order' => 4],
+            ['code' => 'es', 'name' => 'Spain', 'default_currency_id' => $eur->id, 'locale' => 'es-ES', 'hreflang' => 'es', 'is_active' => true, 'display_order' => 5],
+            ['code' => 'it', 'name' => 'Italy', 'default_currency_id' => $eur->id, 'locale' => 'it-IT', 'hreflang' => 'it', 'is_active' => true, 'display_order' => 6],
+            ['code' => 'nl', 'name' => 'Netherlands', 'default_currency_id' => $eur->id, 'locale' => 'nl-NL', 'hreflang' => 'nl', 'is_active' => true, 'display_order' => 7],
+            ['code' => 'au', 'name' => 'Australia', 'default_currency_id' => $aud->id, 'locale' => 'en-AU', 'hreflang' => 'en-au', 'is_active' => true, 'display_order' => 8],
+            ['code' => 'nz', 'name' => 'New Zealand', 'default_currency_id' => $nzd->id, 'locale' => 'en-NZ', 'hreflang' => 'en-nz', 'is_active' => true, 'display_order' => 9],
         ];
 
         $iso3Map = [
@@ -96,16 +97,17 @@ class SeedInitialRolesAndMarketsCommand extends Command
             'fr' => 'FRA',
             'es' => 'ESP',
             'it' => 'ITA',
+            'nl' => 'NLD',
             'au' => 'AUS',
             'nz' => 'NZL',
         ];
 
         foreach ($marketsData as $mData) {
-            $m = Market::firstOrCreate(['code' => $mData['code']], $mData);
+            $m = Market::updateOrCreate(['code' => $mData['code']], $mData);
             // Link country
             $iso2 = strtoupper($mData['code'] === 'uk' ? 'GB' : $mData['code']);
             $iso3 = $iso3Map[$mData['code']] ?? strtoupper($mData['code']);
-            Country::firstOrCreate(
+            Country::updateOrCreate(
                 ['iso_code_2' => $iso2],
                 [
                     'iso_code_3' => $iso3,
@@ -120,16 +122,25 @@ class SeedInitialRolesAndMarketsCommand extends Command
         // 5. Initial Locked Tech Categories
         $categories = [
             ['name' => 'Laptops', 'icon' => 'laptop', 'display_order' => 1],
-            ['name' => 'Smartphones', 'icon' => 'smartphone', 'display_order' => 2],
-            ['name' => 'GPUs', 'icon' => 'cpu', 'display_order' => 3],
-            ['name' => 'CPUs', 'icon' => 'cpu', 'display_order' => 4],
-            ['name' => 'Gaming PCs', 'icon' => 'monitor', 'display_order' => 5],
-            ['name' => 'Monitors', 'icon' => 'monitor', 'display_order' => 6],
-            ['name' => 'SSDs', 'icon' => 'hard-drive', 'display_order' => 7],
-            ['name' => 'RAM', 'icon' => 'server', 'display_order' => 8],
-            ['name' => 'Motherboards', 'icon' => 'layers', 'display_order' => 9],
-            ['name' => 'Routers & Networking', 'icon' => 'wifi', 'display_order' => 10],
-            ['name' => 'NAS & Storage', 'icon' => 'database', 'display_order' => 11],
+            ['name' => 'Gaming Laptops', 'icon' => 'laptop', 'display_order' => 2],
+            ['name' => 'MacBooks', 'icon' => 'laptop', 'display_order' => 3],
+            ['name' => 'Desktops & Mini PCs', 'icon' => 'monitor', 'display_order' => 4],
+            ['name' => 'Smartphones', 'icon' => 'smartphone', 'display_order' => 5],
+            ['name' => 'Tablets & iPads', 'icon' => 'tablet', 'display_order' => 6],
+            ['name' => 'Smartwatches', 'icon' => 'watch', 'display_order' => 7],
+            ['name' => 'GPUs & Graphics Cards', 'icon' => 'cpu', 'display_order' => 8],
+            ['name' => 'CPUs & Processors', 'icon' => 'cpu', 'display_order' => 9],
+            ['name' => 'RAM & Memory', 'icon' => 'server', 'display_order' => 10],
+            ['name' => 'SSDs & Storage', 'icon' => 'hard-drive', 'display_order' => 11],
+            ['name' => 'Motherboards', 'icon' => 'layers', 'display_order' => 12],
+            ['name' => 'Power Supplies & Cases', 'icon' => 'box', 'display_order' => 13],
+            ['name' => 'Gaming Monitors', 'icon' => 'monitor', 'display_order' => 14],
+            ['name' => '4K & OLED TVs', 'icon' => 'tv', 'display_order' => 15],
+            ['name' => 'Mechanical Keyboards', 'icon' => 'keyboard', 'display_order' => 16],
+            ['name' => 'Gaming Mice', 'icon' => 'mouse', 'display_order' => 17],
+            ['name' => 'Headphones & Audio', 'icon' => 'headphones', 'display_order' => 18],
+            ['name' => 'Routers & Mesh WiFi', 'icon' => 'wifi', 'display_order' => 19],
+            ['name' => 'Cables & Docks', 'icon' => 'cable', 'display_order' => 20],
         ];
 
         foreach ($categories as $cat) {
@@ -145,18 +156,46 @@ class SeedInitialRolesAndMarketsCommand extends Command
         }
         $this->info('Categories initialized.');
 
-        // 6. Affiliate Providers Foundation (Unconfigured by default)
-        AffiliateProvider::firstOrCreate(
-            ['code' => 'amazon'],
+        // 6. Affiliate Providers Foundation (Truthful status by default)
+        $providers = [
             [
-                'name' => 'Amazon Associates',
+                'code' => 'awin',
+                'name' => 'Awin Publisher Network',
                 'type' => 'api',
-                'is_active' => false,
+                'is_active' => true,
+                'status' => 'disconnected',
+                'rate_limit_per_minute' => 120,
+            ],
+            [
+                'code' => 'cj',
+                'name' => 'CJ Affiliate (Commission Junction)',
+                'type' => 'api',
+                'is_active' => true,
                 'status' => 'disconnected',
                 'rate_limit_per_minute' => 60,
-            ]
-        );
-        $this->info('Affiliate providers initialized.');
+            ],
+            [
+                'code' => 'impact',
+                'name' => 'Impact (Impact.com)',
+                'type' => 'api',
+                'is_active' => true,
+                'status' => 'disconnected',
+                'rate_limit_per_minute' => 90,
+            ],
+            [
+                'code' => 'amazon',
+                'name' => 'Amazon Associates & PA-API 5.0',
+                'type' => 'api',
+                'is_active' => false,
+                'status' => 'deferred',
+                'rate_limit_per_minute' => 60,
+            ],
+        ];
+
+        foreach ($providers as $prov) {
+            AffiliateProvider::updateOrCreate(['code' => $prov['code']], $prov);
+        }
+        $this->info('Affiliate providers initialized (Awin, CJ, Impact, Amazon).');
 
         // 7. Initial Super Admin Account
         $adminEmail = $this->option('admin-email');

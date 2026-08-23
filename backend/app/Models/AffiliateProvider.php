@@ -37,6 +37,11 @@ class AffiliateProvider extends Model
         return $this->hasMany(Retailer::class);
     }
 
+    public function offers()
+    {
+        return $this->hasManyThrough(Offer::class, Retailer::class);
+    }
+
     public function automationJobs()
     {
         return $this->hasMany(AutomationJob::class, 'provider_id');

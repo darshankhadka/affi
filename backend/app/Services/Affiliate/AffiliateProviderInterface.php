@@ -2,6 +2,7 @@
 
 namespace App\Services\Affiliate;
 
+use App\DTOs\NormalizedProductDTO;
 use App\Models\AffiliateProvider;
 use App\Models\Market;
 use App\Models\Offer;
@@ -9,7 +10,7 @@ use App\Models\Offer;
 interface AffiliateProviderInterface
 {
     /**
-     * Unique code of the provider (e.g., 'amazon', 'awin', 'cj', 'impact', 'direct')
+     * Unique code of the provider (e.g., 'awin', 'cj', 'impact', 'amazon')
      */
     public function getCode(): string;
 
@@ -30,7 +31,6 @@ interface AffiliateProviderInterface
 
     /**
      * Fetch product offers for a given identifier (UPC, EAN, ASIN, MPN) in a specific market
-     * Returns empty array if disconnected or no offers found
      *
      * @return array<int, array{
      *   sku: string,
@@ -44,6 +44,13 @@ interface AffiliateProviderInterface
      * }>
      */
     public function fetchProductOffers(string $identifierType, string $identifierValue, Market $market): array;
+
+    /**
+     * Search products on provider network
+     *
+     * @return NormalizedProductDTO[]
+     */
+    public function searchProducts(string $keywords, Market $market, ?string $category = null, int $limit = 20): array;
 
     /**
      * Sync catalog batch in a bounded, resumable manner
@@ -62,7 +69,7 @@ interface AffiliateProviderInterface
      *
      * @return array{
      *   connected: bool,
-     *   status: string, // 'connected', 'not_configured', 'invalid_credentials', 'rate_limited', 'error'
+     *   status: string, // 'connected', 'not_configured', 'invalid_credentials', 'rate_limited', 'error', 'deferred'
      *   message: string,
      *   latency_ms: ?int
      * }
@@ -73,4 +80,22 @@ interface AffiliateProviderInterface
      * Rate limit (requests per minute)
      */
     public function getRateLimit(): int;
+
+    /**
+     * Supported ISO market codes
+     * @return string[]
+     */
+    public function getSupportedMarkets(): array;
+
+    /**
+     * Supported ISO-4217 currency codes
+     * @return string[]
+     */
+    public function getSupportedCurrencies(): array;
+
+    /**
+     * Supported technology categories
+     * @return string[]
+     */
+    public function getSupportedCategories(): array;
 }
