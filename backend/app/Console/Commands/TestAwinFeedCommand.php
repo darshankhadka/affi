@@ -16,7 +16,7 @@ class TestAwinFeedCommand extends Command
         {--keywords= : Search keywords to filter records}
         {--limit=5 : Record limit to inspect}';
 
-    protected $description = 'Test Awin Product Datafeed download, compression handling, and parsing without ingesting';
+    protected $description = 'Test Awin Product Datafeed streaming download, compression, and parsing without ingesting';
 
     public function handle(AwinProvider $providerConnector, AwinDatafeedService $datafeedService): int
     {
@@ -98,41 +98,58 @@ class TestAwinFeedCommand extends Command
         $maskedUrl = preg_replace('/apikey\/[^\/]+/', 'apikey/********', $feedUrl);
         $this->line("Feed URL: <comment>{$maskedUrl}</comment>\n");
 
-        $downloadResult = $datafeedService->downloadFeed($feedUrl);
+        $this->line("Connecting and streaming feed response...");
+        $progressTick = 0;
 
-        $this->line("HTTP Status: <comment>" . $downloadResult['http_status'] . "</comment>");
-        $this->line("Content-Type: <comment>" . ($downloadResult['content_type'] ?? 'unknown') . "</comment>");
-        $this->line("Compression: <comment>" . strtoupper($downloadResult['compression'] ?? 'none') . "</comment>");
-        $this->line("Latency: <comment>" . $downloadResult['latency_ms'] . " ms</comment>");
-
-        if (!$downloadResult['success']) {
-            $status = $downloadResult['http_status'];
-            if ($status === 401) {
-                $this->error("\nRESULT: INVALID DATAFEED CREDENTIALS (401 Unauthorized)");
-            } elseif ($status === 403) {
-                $this->error("\nRESULT: FORBIDDEN / ACCESS DENIED (403 Forbidden)");
-            } elseif ($status === 404) {
-                $this->error("\nRESULT: DATAFEED NOT FOUND / INVALID FEED URL (404 Not Found)");
-                $this->line("<comment>Explanation: The Awin Publisher API is connected, but the Create-a-Feed URL or Datafeed API Key for advertiser {$targetProgramme['id']} was not found on productdata.awin.com.</comment>");
-                $this->line("<comment>Please verify the exact download URL generated in Awin (Toolbox -> Create-a-Feed) and configure AWIN_DATAFEED_URL in backend/.env.</comment>");
-            } else {
-                $this->error("\nRESULT: FEED DOWNLOAD ERROR");
+        $streamResult = $datafeedService->streamFeedRecords(
+            $feedUrl,
+            $keywords,
+            $market,
+            $limit,
+            function (array $progress) use (&$progressTick) {
+                if (++$progressTick % 2 === 0) {
+                    $this->line("  [Progress] Received: " . round($progress['bytes_received'] / 1024, 1) . " KB | Rows parsed: {$progress['rows_parsed']} | Elapsed: {$progress['elapsed_ms']} ms");
+                }
             }
-            if (!empty($downloadResult['error'])) {
-                $this->line("<comment>Details: {$downloadResult['error']}</comment>");
+        );
+
+        $this->line("\n--- HTTP RESPONSE & HEADERS ---");
+        $this->line("HTTP Status: <comment>" . $streamResult['http_status'] . "</comment>");
+        $this->line("TTFB (Time to first byte): <comment>" . $streamResult['ttfb_ms'] . " ms</comment>");
+        $this->line("Total Streaming Time: <comment>" . $streamResult['latency_ms'] . " ms</comment>");
+        $this->line("Content-Type: <comment>" . ($streamResult['headers']['content-type'] ?? 'unknown') . "</comment>");
+        $this->line("Content-Disposition: <comment>" . ($streamResult['headers']['content-disposition'] ?? 'none') . "</comment>");
+        $this->line("Compression: <comment>" . strtoupper($streamResult['compression']) . "</comment>");
+        $this->line("Bytes Streamed: <info>" . round($streamResult['bytes_received'] / 1024, 2) . " KB</info>");
+
+        if (!$streamResult['success']) {
+            $code = $streamResult['error_code'];
+            if ($code === 'connection_timeout') {
+                $this->error("\nRESULT: FEED CONNECTION TIMEOUT");
+            } elseif ($code === 'read_timeout') {
+                $this->error("\nRESULT: FEED READ TIMEOUT");
+            } elseif ($code === 'invalid_credentials') {
+                $this->error("\nRESULT: INVALID DATAFEED CREDENTIALS (401 Unauthorized)");
+            } elseif ($code === 'forbidden') {
+                $this->error("\nRESULT: FORBIDDEN / ACCESS DENIED (403 Forbidden)");
+            } elseif ($code === 'feed_not_found') {
+                $this->error("\nRESULT: DATAFEED NOT FOUND / INVALID FEED URL (404 Not Found)");
+                $this->line("<comment>Explanation: The Awin Publisher API is connected, but the Create-a-Feed URL was not found on productdata.awin.com.</comment>");
+            } elseif ($code === 'rate_limited') {
+                $this->error("\nRESULT: FEED RATE LIMITED (429)");
+            } elseif ($code === 'server_error') {
+                $this->error("\nRESULT: FEED SERVER ERROR (HTTP {$streamResult['http_status']})");
+            } else {
+                $this->error("\nRESULT: FEED ERROR ({$code})");
+            }
+
+            if (!empty($streamResult['error'])) {
+                $this->line("<comment>Details: {$streamResult['error']}</comment>");
             }
             return Command::FAILURE;
         }
 
-        $sizeKb = round(strlen($downloadResult['content']) / 1024, 2);
-        $this->line("Uncompressed Size: <info>{$sizeKb} KB</info>");
-
-        $records = $datafeedService->parseCsvRecords(
-            $downloadResult['content'],
-            $keywords,
-            $limit
-        );
-
+        $records = $streamResult['records'];
         $this->info("\nParsed Records Matching Criteria: " . count($records));
 
         $normalizedCount = 0;
@@ -162,7 +179,7 @@ class TestAwinFeedCommand extends Command
         }
 
         $this->info("\nSuccessfully normalized {$normalizedCount} / " . count($records) . " records.");
-        $this->info("RESULT: FEED OPERATIONAL & VERIFIED");
+        $this->info("RESULT: FEED AVAILABLE & OPERATIONAL");
         return Command::SUCCESS;
     }
 }

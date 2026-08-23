@@ -266,7 +266,7 @@ class AwinProviderTest extends TestCase
         $this->assertEquals('in_stock', $dto->offer->availability);
         $this->assertEquals('https://www.awin1.com/pclick.php?p=101', $dto->offer->affiliateUrl);
         $this->assertEquals('https://www.blazevideos.de/products/a350', $dto->offer->originalUrl);
-        $this->assertCount(2, $dto->images);
+        $this->assertCount(3, $dto->images);
         $this->assertCount(4, $dto->specifications);
     }
 

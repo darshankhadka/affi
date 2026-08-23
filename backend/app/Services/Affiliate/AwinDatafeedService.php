@@ -4,6 +4,9 @@ namespace App\Services\Affiliate;
 
 use App\Models\AffiliateProvider;
 use App\Models\Market;
+use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -118,19 +121,6 @@ class AwinDatafeedService
 
     /**
      * Fetch joined advertiser programmes from Awin Publisher API
-     *
-     * @return array<int, array{
-     *   id: int,
-     *   name: string,
-     *   displayUrl: string,
-     *   clickThroughUrl: string,
-     *   currencyCode: string,
-     *   primaryRegion: array{countryCode: string, name: string},
-     *   primarySector: string,
-     *   validDomains: array,
-     *   status: string,
-     *   linkStatus: string
-     * }>
      */
     public function getJoinedProgrammes(AffiliateProvider $provider): array
     {
@@ -227,177 +217,394 @@ class AwinDatafeedService
     }
 
     /**
-     * Download and extract feed content with memory limits and streaming safety
+     * Stream and parse feed records with bounded memory and incremental decompression
      *
      * @return array{
      *   success: bool,
-     *   content: ?string,
+     *   records: array<int, array<string, mixed>>,
      *   http_status: int,
-     *   content_type: ?string,
+     *   headers: array<string, string>,
      *   compression: string,
+     *   bytes_received: int,
      *   latency_ms: int,
+     *   ttfb_ms: int,
+     *   error_code: ?string,
      *   error: ?string
      * }
      */
-    public function downloadFeed(string $feedUrl, int $timeoutSeconds = 30): array
-    {
+    public function streamFeedRecords(
+        string $feedUrl,
+        ?string $keywords = null,
+        ?Market $market = null,
+        int $limit = 50,
+        ?callable $progressCallback = null
+    ): array {
         if (empty($feedUrl)) {
             return [
                 'success' => false,
-                'content' => null,
+                'records' => [],
                 'http_status' => 0,
-                'content_type' => null,
+                'headers' => [],
                 'compression' => 'none',
+                'bytes_received' => 0,
                 'latency_ms' => 0,
-                'error' => 'Awin Datafeed URL or Datafeed API Key is not configured (AWIN_DATAFEED_URL or AWIN_DATAFEED_API_KEY required).',
+                'ttfb_ms' => 0,
+                'error_code' => 'missing_configuration',
+                'error' => 'Awin Datafeed URL is not configured (set AWIN_DATAFEED_URL in backend/.env).',
             ];
         }
 
-        $startTime = microtime(true);
+        $t0 = microtime(true);
+        $ttfb = 0;
 
         try {
             $response = Http::withHeaders([
                 'User-Agent' => 'ARIKARTECH-ProductEngine/1.0',
-            ])->timeout($timeoutSeconds)->get($feedUrl);
+                'Accept-Encoding' => 'gzip, deflate',
+            ])->withOptions([
+                'stream' => true,
+                'connect_timeout' => 10,
+                'read_timeout' => 15,
+            ])->timeout(60)->get($feedUrl);
 
-            $latency = (int) round((microtime(true) - $startTime) * 1000);
-            $status = $response->status();
-            $contentType = $response->header('Content-Type');
+            $ttfb = (int) round((microtime(true) - $t0) * 1000);
+            $psrResponse = $response->toPsrResponse();
+            $status = $psrResponse->getStatusCode();
 
-            if (!$response->successful()) {
+            $headerMap = [];
+            foreach ($psrResponse->getHeaders() as $name => $values) {
+                $headerMap[strtolower($name)] = implode(', ', $values);
+            }
+
+            if ($status !== 200) {
+                $elapsed = (int) round((microtime(true) - $t0) * 1000);
+                $bodyPreview = substr((string) $psrResponse->getBody()->read(500), 0, 300);
+
                 return [
                     'success' => false,
-                    'content' => null,
+                    'records' => [],
                     'http_status' => $status,
-                    'content_type' => $contentType,
+                    'headers' => $headerMap,
                     'compression' => 'none',
-                    'latency_ms' => $latency,
-                    'error' => "HTTP {$status}: " . substr($response->body(), 0, 300),
+                    'bytes_received' => strlen($bodyPreview),
+                    'latency_ms' => $elapsed,
+                    'ttfb_ms' => $ttfb,
+                    'error_code' => $this->classifyHttpStatus($status),
+                    'error' => "HTTP {$status}: " . $bodyPreview,
                 ];
             }
 
-            $rawBody = $response->body();
+            $body = $psrResponse->getBody();
+            $contentType = $headerMap['content-type'] ?? '';
+            $contentDisposition = $headerMap['content-disposition'] ?? '';
+
+            // Detect compression
             $compression = 'none';
+            $isGzip = str_contains($contentType, 'gzip') || str_contains($contentDisposition, '.gz');
+            $isZip = !$isGzip && (str_contains($contentType, 'zip') || str_contains($contentDisposition, '.zip'));
 
-            // 1. Detect GZIP magic header (0x1f, 0x8b)
-            if (strlen($rawBody) >= 2 && substr($rawBody, 0, 2) === "\x1f\x8b") {
+            if ($isGzip) {
                 $compression = 'gzip';
-                $decoded = @gzdecode($rawBody);
-                if ($decoded !== false) {
-                    $rawBody = $decoded;
-                } else {
-                    return [
-                        'success' => false,
-                        'content' => null,
-                        'http_status' => $status,
-                        'content_type' => $contentType,
-                        'compression' => 'gzip',
-                        'latency_ms' => $latency,
-                        'error' => "Failed to decompress GZIP feed content.",
-                    ];
-                }
-            }
-            // 2. Detect ZIP magic header (PK\x03\x04)
-            elseif (strlen($rawBody) >= 4 && substr($rawBody, 0, 4) === "PK\x03\x04") {
+            } elseif ($isZip) {
                 $compression = 'zip';
-                $tmpZip = tempnam(sys_get_temp_dir(), 'awin_zip_');
-                file_put_contents($tmpZip, $rawBody);
+            }
 
-                $zip = new ZipArchive();
-                if ($zip->open($tmpZip) === true) {
-                    // Extract first file in zip
-                    $filename = $zip->getNameIndex(0);
-                    $extracted = $filename ? $zip->getFromIndex(0) : false;
-                    $zip->close();
-                    @unlink($tmpZip);
+            // ZIP handling (if whole archive needed, buffer safely to temp file)
+            if ($isZip) {
+                return $this->handleZipStream($body, $keywords, $market, $limit, $headerMap, $t0, $ttfb, $progressCallback);
+            }
 
-                    if ($extracted !== false) {
-                        $rawBody = $extracted;
+            // Streaming incremental GZIP / Plain CSV parsing
+            $inflator = $isGzip ? @inflate_init(ZLIB_ENCODING_GZIP) : null;
+            $buffer = '';
+            $headersParsed = false;
+            $cleanHeaders = [];
+            $records = [];
+            $bytesReceived = 0;
+            $searchTerms = $keywords ? array_filter(explode(' ', strtolower(trim($keywords)))) : [];
+            $expectedCurrency = $market ? strtoupper($market->defaultCurrency?->code ?? $market->currency?->code ?? '') : null;
+
+            while (!$body->eof()) {
+                $chunk = $body->read(16384);
+                if ($chunk === '' || $chunk === false) {
+                    break;
+                }
+
+                $chunkLen = strlen($chunk);
+                $bytesReceived += $chunkLen;
+
+                // Detect gzip magic bytes on first chunk if not signaled in headers
+                if ($bytesReceived === $chunkLen && $compression === 'none' && $chunkLen >= 2 && substr($chunk, 0, 2) === "\x1f\x8b") {
+                    $compression = 'gzip';
+                    $inflator = @inflate_init(ZLIB_ENCODING_GZIP);
+                }
+
+                if ($inflator) {
+                    $decompressed = @inflate_add($inflator, $chunk, ZLIB_SYNC_FLUSH);
+                    if ($decompressed !== false) {
+                        $buffer .= $decompressed;
                     } else {
-                        return [
-                            'success' => false,
-                            'content' => null,
-                            'http_status' => $status,
-                            'content_type' => $contentType,
-                            'compression' => 'zip',
-                            'latency_ms' => $latency,
-                            'error' => "Failed to extract CSV from ZIP feed archive.",
-                        ];
+                        $buffer .= $chunk;
                     }
                 } else {
-                    @unlink($tmpZip);
-                    return [
-                        'success' => false,
-                        'content' => null,
-                        'http_status' => $status,
-                        'content_type' => $contentType,
-                        'compression' => 'zip',
-                        'latency_ms' => $latency,
-                        'error' => "Could not open ZIP feed archive.",
-                    ];
+                    $buffer .= $chunk;
+                }
+
+                // Process complete lines from buffer
+                while (($pos = strpos($buffer, "\n")) !== false) {
+                    $line = substr($buffer, 0, $pos);
+                    $buffer = substr($buffer, $pos + 1);
+                    $line = trim($line, "\r\n");
+                    if ($line === '') {
+                        continue;
+                    }
+
+                    // 1. First line = CSV Header
+                    if (!$headersParsed) {
+                        $stream = fopen('php://memory', 'r+');
+                        fwrite($stream, $line);
+                        rewind($stream);
+                        $rawH = fgetcsv($stream, 0, ',');
+                        fclose($stream);
+
+                        if (!empty($rawH) && is_array($rawH)) {
+                            $cleanHeaders = array_map(function ($h) {
+                                return trim(str_replace(["\xEF\xBB\xBF", '"', "'"], '', (string) $h));
+                            }, $rawH);
+                            $headersParsed = true;
+                        }
+                        continue;
+                    }
+
+                    // 2. Data line = CSV Row
+                    $stream = fopen('php://memory', 'r+');
+                    fwrite($stream, $line);
+                    rewind($stream);
+                    $row = fgetcsv($stream, 0, ',');
+                    fclose($stream);
+
+                    if (!is_array($row) || empty($row)) {
+                        continue;
+                    }
+
+                    // Align row column counts
+                    $hCount = count($cleanHeaders);
+                    $rCount = count($row);
+                    if ($rCount !== $hCount) {
+                        if ($rCount < $hCount) {
+                            $row = array_pad($row, $hCount, null);
+                        } else {
+                            $row = array_slice($row, 0, $hCount);
+                        }
+                    }
+
+                    $record = array_combine($cleanHeaders, $row);
+                    if (!$record || empty($record['product_name'] ?? $record['title'] ?? null)) {
+                        continue;
+                    }
+
+                    // Market currency compatibility filter if applicable
+                    if ($expectedCurrency && !empty($record['currency'])) {
+                        $recCurrency = strtoupper(trim((string) $record['currency']));
+                        if ($recCurrency !== $expectedCurrency && $recCurrency !== 'EUR' && $expectedCurrency !== 'EUR') {
+                            continue;
+                        }
+                    }
+
+                    // Keyword filter if requested
+                    if (!empty($searchTerms)) {
+                        $haystack = strtolower(
+                            ($record['product_name'] ?? '') . ' ' .
+                            ($record['brand_name'] ?? '') . ' ' .
+                            ($record['merchant_category'] ?? '') . ' ' .
+                            ($record['category_name'] ?? '') . ' ' .
+                            ($record['keywords'] ?? '') . ' ' .
+                            ($record['model_number'] ?? '') . ' ' .
+                            ($record['mpn'] ?? '') . ' ' .
+                            ($record['description'] ?? '')
+                        );
+
+                        $allMatch = true;
+                        foreach ($searchTerms as $term) {
+                            if (!str_contains($haystack, $term)) {
+                                $allMatch = false;
+                                break;
+                            }
+                        }
+
+                        if (!$allMatch) {
+                            continue;
+                        }
+                    }
+
+                    $records[] = $record;
+
+                    if ($progressCallback) {
+                        $progressCallback([
+                            'bytes_received' => $bytesReceived,
+                            'elapsed_ms' => (int) round((microtime(true) - $t0) * 1000),
+                            'rows_parsed' => count($records),
+                        ]);
+                    }
+
+                    if (count($records) >= $limit) {
+                        break 2;
+                    }
                 }
             }
+
+            $body->close();
+            $elapsed = (int) round((microtime(true) - $t0) * 1000);
 
             return [
                 'success' => true,
-                'content' => $rawBody,
-                'http_status' => $status,
-                'content_type' => $contentType,
+                'records' => $records,
+                'http_status' => 200,
+                'headers' => $headerMap,
                 'compression' => $compression,
-                'latency_ms' => $latency,
+                'bytes_received' => $bytesReceived,
+                'latency_ms' => $elapsed,
+                'ttfb_ms' => $ttfb,
+                'error_code' => null,
                 'error' => null,
             ];
-        } catch (Throwable $e) {
-            $latency = (int) round((microtime(true) - $startTime) * 1000);
+        } catch (ConnectException $ce) {
+            $elapsed = (int) round((microtime(true) - $t0) * 1000);
             return [
                 'success' => false,
-                'content' => null,
+                'records' => [],
                 'http_status' => 0,
-                'content_type' => null,
+                'headers' => [],
                 'compression' => 'none',
-                'latency_ms' => $latency,
-                'error' => "Feed download failed: {$e->getMessage()}",
+                'bytes_received' => 0,
+                'latency_ms' => $elapsed,
+                'ttfb_ms' => 0,
+                'error_code' => 'connection_timeout',
+                'error' => 'Connection timeout: Could not connect to Awin feed server within timeout.',
+            ];
+        } catch (RequestException $re) {
+            $elapsed = (int) round((microtime(true) - $t0) * 1000);
+            $status = $re->hasResponse() ? $re->getResponse()->getStatusCode() : 0;
+            return [
+                'success' => false,
+                'records' => [],
+                'http_status' => $status,
+                'headers' => [],
+                'compression' => 'none',
+                'bytes_received' => 0,
+                'latency_ms' => $elapsed,
+                'ttfb_ms' => 0,
+                'error_code' => $this->classifyHttpStatus($status),
+                'error' => "Request failure (HTTP {$status}): " . $re->getMessage(),
+            ];
+        } catch (Throwable $e) {
+            $elapsed = (int) round((microtime(true) - $t0) * 1000);
+            return [
+                'success' => false,
+                'records' => [],
+                'http_status' => 0,
+                'headers' => [],
+                'compression' => 'none',
+                'bytes_received' => 0,
+                'latency_ms' => $elapsed,
+                'ttfb_ms' => 0,
+                'error_code' => 'stream_error',
+                'error' => "Datafeed streaming exception: " . $e->getMessage(),
             ];
         }
     }
 
     /**
-     * Parse raw CSV feed records streamingly with optional keyword filtering and bounding
-     *
-     * @return array<int, array<string, mixed>>
+     * Stream and extract CSV entry from a ZIP archive stream
      */
-    public function parseCsvRecords(
-        string $csvContent,
-        ?string $keywords = null,
-        int $limit = 50
+    protected function handleZipStream(
+        $body,
+        ?string $keywords,
+        ?Market $market,
+        int $limit,
+        array $headers,
+        float $t0,
+        int $ttfb,
+        ?callable $progressCallback
     ): array {
-        if (empty(trim($csvContent))) {
-            return [];
+        $tmpZip = tempnam(sys_get_temp_dir(), 'awin_zip_') . '.zip';
+        $out = fopen($tmpZip, 'wb');
+        $bytesReceived = 0;
+
+        while (!$body->eof()) {
+            $chunk = $body->read(32768);
+            if ($chunk === '' || $chunk === false) {
+                break;
+            }
+            fwrite($out, $chunk);
+            $bytesReceived += strlen($chunk);
+        }
+        fclose($out);
+        $body->close();
+
+        $zip = new ZipArchive();
+        if ($zip->open($tmpZip) !== true) {
+            @unlink($tmpZip);
+            $elapsed = (int) round((microtime(true) - $t0) * 1000);
+            return [
+                'success' => false,
+                'records' => [],
+                'http_status' => 200,
+                'headers' => $headers,
+                'compression' => 'zip',
+                'bytes_received' => $bytesReceived,
+                'latency_ms' => $elapsed,
+                'ttfb_ms' => $ttfb,
+                'error_code' => 'zip_extract_error',
+                'error' => 'Could not open ZIP archive from Awin feed response.',
+            ];
         }
 
-        // Open string as streaming resource to avoid in-memory explosion
-        $stream = fopen('php://memory', 'r+');
-        fwrite($stream, $csvContent);
-        rewind($stream);
-
-        // Read header line
-        $headers = fgetcsv($stream, 0, ',');
-        if (!$headers || !is_array($headers)) {
-            fclose($stream);
-            return [];
+        // Find CSV file in ZIP archive
+        $csvIndex = -1;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if (str_ends_with(strtolower($name), '.csv') || str_ends_with(strtolower($name), '.txt')) {
+                $csvIndex = $i;
+                break;
+            }
         }
 
-        // Clean headers: remove UTF-8 BOM, spaces, and quotes
+        if ($csvIndex === -1 && $zip->numFiles > 0) {
+            $csvIndex = 0;
+        }
+
+        $csvStream = $zip->getStream($zip->getNameIndex($csvIndex));
+
+        if (!$csvStream) {
+            $zip->close();
+            @unlink($tmpZip);
+            $elapsed = (int) round((microtime(true) - $t0) * 1000);
+            return [
+                'success' => false,
+                'records' => [],
+                'http_status' => 200,
+                'headers' => $headers,
+                'compression' => 'zip',
+                'bytes_received' => $bytesReceived,
+                'latency_ms' => $elapsed,
+                'ttfb_ms' => $ttfb,
+                'error_code' => 'zip_empty',
+                'error' => 'No readable CSV file found inside ZIP feed archive.',
+            ];
+        }
+
+        // Parse extracted CSV stream
+        $rawHeaders = fgetcsv($csvStream, 0, ',');
         $cleanHeaders = array_map(function ($h) {
             return trim(str_replace(["\xEF\xBB\xBF", '"', "'"], '', (string) $h));
-        }, $headers);
+        }, (array) $rawHeaders);
 
-        $results = [];
+        $records = [];
         $searchTerms = $keywords ? array_filter(explode(' ', strtolower(trim($keywords)))) : [];
 
-        while (($row = fgetcsv($stream, 0, ',')) !== false) {
+        while (($row = fgetcsv($csvStream, 0, ',')) !== false && count($records) < $limit) {
             if (count($row) !== count($cleanHeaders)) {
-                // Handle misaligned rows gracefully
                 if (count($row) < count($cleanHeaders)) {
                     $row = array_pad($row, count($cleanHeaders), null);
                 } else {
@@ -410,38 +617,58 @@ class AwinDatafeedService
                 continue;
             }
 
-            // Keyword filter if specified
             if (!empty($searchTerms)) {
-                $searchHaystack = strtolower(
+                $haystack = strtolower(
                     ($record['product_name'] ?? '') . ' ' .
                     ($record['brand_name'] ?? '') . ' ' .
-                    ($record['merchant_category'] ?? '') . ' ' .
-                    ($record['category_name'] ?? '') . ' ' .
-                    ($record['keywords'] ?? '') . ' ' .
                     ($record['description'] ?? '')
                 );
-
                 $allMatch = true;
                 foreach ($searchTerms as $term) {
-                    if (!str_contains($searchHaystack, $term)) {
+                    if (!str_contains($haystack, $term)) {
                         $allMatch = false;
                         break;
                     }
                 }
-
                 if (!$allMatch) {
                     continue;
                 }
             }
 
-            $results[] = $record;
-
-            if (count($results) >= $limit) {
-                break;
-            }
+            $records[] = $record;
         }
 
-        fclose($stream);
-        return $results;
+        fclose($csvStream);
+        $zip->close();
+        @unlink($tmpZip);
+        $elapsed = (int) round((microtime(true) - $t0) * 1000);
+
+        return [
+            'success' => true,
+            'records' => $records,
+            'http_status' => 200,
+            'headers' => $headers,
+            'compression' => 'zip',
+            'bytes_received' => $bytesReceived,
+            'latency_ms' => $elapsed,
+            'ttfb_ms' => $ttfb,
+            'error_code' => null,
+            'error' => null,
+        ];
+    }
+
+    /**
+     * Map HTTP status codes into standardized error classification
+     */
+    protected function classifyHttpStatus(int $status): string
+    {
+        return match ($status) {
+            401 => 'invalid_credentials',
+            403 => 'forbidden',
+            404 => 'feed_not_found',
+            429 => 'rate_limited',
+            500, 502, 503, 504 => 'server_error',
+            default => $status >= 400 ? 'http_error' : 'unknown_error',
+        };
     }
 }

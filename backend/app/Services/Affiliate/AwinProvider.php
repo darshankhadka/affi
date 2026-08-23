@@ -264,25 +264,25 @@ class AwinProvider implements AffiliateProviderInterface
                 continue;
             }
 
-            $downloadResult = $this->datafeedService->downloadFeed($feedUrl);
-            if (!$downloadResult['success']) {
-                $status = $downloadResult['http_status'];
-                $failedFeedErrors[] = "Advertiser {$prog['id']} ({$prog['name']}): HTTP {$status} ({$downloadResult['error']})";
-
-                if ($status === 401 || $status === 403 || $status >= 500) {
-                    throw new RuntimeException("Awin Datafeed Download Error (HTTP {$status}): {$downloadResult['error']}");
-                }
-                Log::warning("Awin feed download skipped for advertiser {$prog['id']} ({$prog['name']}): {$downloadResult['error']}");
-                continue;
-            }
-
-            $records = $this->datafeedService->parseCsvRecords(
-                $downloadResult['content'],
+            $streamResult = $this->datafeedService->streamFeedRecords(
+                $feedUrl,
                 $keywords,
+                $market,
                 $limit - $collectedCount
             );
 
-            foreach ($records as $record) {
+            if (!$streamResult['success']) {
+                $status = $streamResult['http_status'];
+                $failedFeedErrors[] = "Advertiser {$prog['id']} ({$prog['name']}): HTTP {$status} ({$streamResult['error']})";
+
+                if ($status === 401 || $status === 403 || $status >= 500) {
+                    throw new RuntimeException("Awin Datafeed Download Error (HTTP {$status}): {$streamResult['error']}");
+                }
+                Log::warning("Awin feed stream skipped for advertiser {$prog['id']} ({$prog['name']}): {$streamResult['error']}");
+                continue;
+            }
+
+            foreach ($streamResult['records'] as $record) {
                 if (empty($record['merchant_id'])) {
                     $record['merchant_id'] = (string) $prog['id'];
                 }
@@ -350,9 +350,11 @@ class AwinProvider implements AffiliateProviderInterface
             $identifiers[] = NormalizedIdentifierDTO::from('MPN', (string) $mpn);
         }
         if ($merchantProductId) {
-            $identifiers[] = NormalizedIdentifierDTO::from('MERCHANT_SKU', (string) $merchantProductId);
+            $identifiers[] = NormalizedIdentifierDTO::from('SKU', (string) $merchantProductId);
         }
-        $identifiers[] = NormalizedIdentifierDTO::from('SKU', $awProductId);
+        if ($awProductId && $awProductId !== $merchantProductId) {
+            $identifiers[] = NormalizedIdentifierDTO::from('SKU', $awProductId);
+        }
 
         // Price & Offer
         $price = isset($item['search_price']) ? (float) $item['search_price'] : (
@@ -388,6 +390,11 @@ class AwinProvider implements AffiliateProviderInterface
         // Delivery
         $deliveryCost = isset($item['delivery_cost']) ? (float) $item['delivery_cost'] : 0.0;
 
+        $condition = !empty($item['condition']) ? strtolower(trim((string) $item['condition'])) : 'new';
+        if (!in_array($condition, ['new', 'refurbished', 'used', 'open_box'])) {
+            $condition = 'new';
+        }
+
         $offerDto = new NormalizedOfferDTO(
             retailerDomain: $merchantDomain,
             retailerName: $merchantName,
@@ -397,32 +404,53 @@ class AwinProvider implements AffiliateProviderInterface
             originalPrice: $originalPrice,
             currencyCode: strtoupper((string) $currency),
             availability: $inStock ? 'in_stock' : 'out_of_stock',
-            condition: isset($item['condition']) ? strtolower((string) $item['condition']) : 'new',
+            condition: $condition,
             affiliateUrl: $affiliateUrl,
             originalUrl: $originalUrl,
             shippingCost: $deliveryCost,
             marketCode: $market->code
         );
 
-        // Images
-        $images = [];
-        $primaryImg = $item['merchant_image_url'] ?? $item['large_image'] ?? $item['aw_image_url'] ?? null;
-        if (!empty($primaryImg)) {
-            $images[] = new NormalizedImageDTO((string) $primaryImg, $title, true, 0);
+        // Images (handle single and comma-separated image lists safely)
+        $rawImages = [];
+        if (!empty($item['merchant_image_url'])) {
+            $rawImages[] = $item['merchant_image_url'];
+        }
+        if (!empty($item['large_image'])) {
+            $rawImages[] = $item['large_image'];
+        }
+        if (!empty($item['aw_image_url'])) {
+            $rawImages[] = $item['aw_image_url'];
+        }
+        if (!empty($item['alternate_image'])) {
+            $rawImages = array_merge($rawImages, explode(',', (string) $item['alternate_image']));
+        }
+        if (!empty($item['alternate_image_two'])) {
+            $rawImages = array_merge($rawImages, explode(',', (string) $item['alternate_image_two']));
+        }
+        if (!empty($item['alternate_image_three'])) {
+            $rawImages = array_merge($rawImages, explode(',', (string) $item['alternate_image_three']));
+        }
+        if (!empty($item['alternate_image_four'])) {
+            $rawImages = array_merge($rawImages, explode(',', (string) $item['alternate_image_four']));
+        }
+        if (!empty($item['merchant_thumb_url'])) {
+            $rawImages[] = $item['merchant_thumb_url'];
         }
 
-        $extraImages = [
-            $item['alternate_image'] ?? null,
-            $item['alternate_image_two'] ?? null,
-            $item['alternate_image_three'] ?? null,
-            $item['alternate_image_four'] ?? null,
-            $item['merchant_thumb_url'] ?? null,
-        ];
+        $images = [];
+        $seenUrls = [];
+        $imgOrder = 0;
 
-        $imgIndex = 1;
-        foreach ($extraImages as $extraImg) {
-            if (!empty($extraImg) && $extraImg !== $primaryImg) {
-                $images[] = new NormalizedImageDTO((string) $extraImg, $title, false, $imgIndex++);
+        foreach ($rawImages as $rawUrl) {
+            $cleanUrl = trim((string) $rawUrl);
+            if (empty($cleanUrl) || !filter_var($cleanUrl, FILTER_VALIDATE_URL) || isset($seenUrls[$cleanUrl])) {
+                continue;
+            }
+            $seenUrls[$cleanUrl] = true;
+            $images[] = new NormalizedImageDTO($cleanUrl, $title, $imgOrder === 0, $imgOrder++);
+            if (count($images) >= 5) {
+                break;
             }
         }
 
