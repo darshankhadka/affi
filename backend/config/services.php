@@ -52,6 +52,8 @@ return [
     'awin' => [
         'api_token' => env('AWIN_API_TOKEN'),
         'publisher_id' => env('AWIN_PUBLISHER_ID'),
+        'datafeed_api_key' => env('AWIN_DATAFEED_API_KEY', env('AWIN_API_TOKEN')),
+        'datafeed_url' => env('AWIN_DATAFEED_URL'),
     ],
 
     'cj' => [

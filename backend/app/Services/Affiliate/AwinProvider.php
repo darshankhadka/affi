@@ -40,6 +40,12 @@ class AwinProvider implements AffiliateProviderInterface
         'us' => ['currency' => 'USD', 'domain' => 'awin1.com'],
     ];
 
+    public function __construct(
+        protected ?AwinDatafeedService $datafeedService = null
+    ) {
+        $this->datafeedService = $datafeedService ?? new AwinDatafeedService();
+    }
+
     public function getCode(): string
     {
         return 'awin';
@@ -57,6 +63,19 @@ class AwinProvider implements AffiliateProviderInterface
         $publisherId = $config['publisher_id'] ?? config('services.awin.publisher_id');
 
         return !empty($apiToken) && !empty($publisherId);
+    }
+
+    /**
+     * Get joined advertiser programmes
+     */
+    public function getJoinedProgrammes(?AffiliateProvider $provider = null): array
+    {
+        $provider = $provider ?? AffiliateProvider::where('code', 'awin')->first();
+        if (!$provider || !$this->isConnected($provider)) {
+            return [];
+        }
+
+        return $this->datafeedService->getJoinedProgrammes($provider);
     }
 
     public function testConnection(AffiliateProvider $provider): array
@@ -85,7 +104,6 @@ class AwinProvider implements AffiliateProviderInterface
             ]);
 
             $latency = (int) round((microtime(true) - $startTime) * 1000);
-
             $status = $response->status();
 
             if ($response->successful()) {
@@ -178,7 +196,7 @@ class AwinProvider implements AffiliateProviderInterface
 
         $advertiserId = $offer->retailer?->affiliate_program_id ?? $config['default_advertiser_id'] ?? null;
         if (empty($advertiserId)) {
-            Log::warning("Awin affiliate URL generation skipped: No advertiser program ID found for retailer '{$offer->retailer?->name}'.");
+            Log::warning("Awin affiliate URL generation skipped: No verified advertiser program ID found for retailer '{$offer->retailer?->name}'. Using target URL.");
             return $targetUrl;
         }
 
@@ -199,9 +217,10 @@ class AwinProvider implements AffiliateProviderInterface
     }
 
     /**
-     * Search products on Awin API with explicit diagnostics and error reporting
+     * Ingest products from real Awin Product Datafeeds for joined programmes in the target market
      *
-     * @throws RuntimeException on API failure
+     * @return NormalizedProductDTO[]
+     * @throws RuntimeException on API/network failure
      */
     public function searchProducts(string $keywords, Market $market, ?string $category = null, int $limit = 20): array
     {
@@ -210,68 +229,88 @@ class AwinProvider implements AffiliateProviderInterface
             throw new RuntimeException("Awin provider is disconnected or missing credentials.");
         }
 
-        $config = $provider->config ?? [];
-        $apiKey = $config['api_token'] ?? config('services.awin.api_token');
-        $publisherId = $config['publisher_id'] ?? config('services.awin.publisher_id');
+        $programmes = $this->getJoinedProgrammes($provider);
+        if (empty($programmes)) {
+            Log::info("Awin search: No joined programmes found for publisher account.");
+            return [];
+        }
 
-        $endpoint = "https://api.awin.com/publishers/{$publisherId}/productsearch";
-        $lang = in_array($market->code, ['gb', 'uk', 'ie']) ? 'en' : $market->code;
-        $params = [
-            'query' => $keywords,
-            'limit' => min($limit, 50),
-            'language' => $lang,
-        ];
+        // Filter programmes matching target market country code if specified
+        $targetIso2 = strtoupper($market->code === 'uk' ? 'GB' : $market->code);
+        $matchingProgrammes = array_filter($programmes, function ($p) use ($targetIso2) {
+            $pCountry = strtoupper($p['primaryRegion']['countryCode'] ?? '');
+            return empty($pCountry) || $pCountry === $targetIso2 || $pCountry === 'EU' || $pCountry === 'GLOBAL';
+        });
 
-        $startTime = microtime(true);
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => "Bearer {$apiKey}",
-                'User-Agent' => 'ARIKARTECH-ProductEngine/1.0',
-            ])->timeout(10)->get($endpoint, $params);
+        // If no region-specific match, check all active joined programmes
+        if (empty($matchingProgrammes)) {
+            $matchingProgrammes = $programmes;
+        }
 
-            $latency = (int) round((microtime(true) - $startTime) * 1000);
-            $status = $response->status();
+        $results = [];
+        $collectedCount = 0;
+        $attemptedFeeds = 0;
+        $failedFeedErrors = [];
 
-            if (!$response->successful()) {
-                $bodyPreview = substr($response->body(), 0, 300);
-                Log::warning("Awin search API HTTP {$status} [{$latency}ms]: {$bodyPreview}", [
-                    'endpoint' => $endpoint,
-                    'market' => $market->code,
-                    'keywords' => $keywords,
-                ]);
-
-                throw new RuntimeException("Awin API HTTP {$status} Error: {$bodyPreview}");
+        foreach ($matchingProgrammes as $prog) {
+            if ($collectedCount >= $limit) {
+                break;
             }
 
-            $raw = $response->json();
-            $items = $raw['products'] ?? $raw['data'] ?? (is_array($raw) && isset($raw[0]) ? $raw : []);
+            $attemptedFeeds++;
+            $feedUrl = config('services.awin.datafeed_url')
+                ?: $this->datafeedService->getFeedUrl($prog['id'], $market);
 
-            if (empty($items)) {
-                Log::info("Awin search returned 0 items for '{$keywords}' in market '{$market->code}' [{$latency}ms].");
-                return [];
+            $downloadResult = $this->datafeedService->downloadFeed($feedUrl);
+            if (!$downloadResult['success']) {
+                $status = $downloadResult['http_status'];
+                $failedFeedErrors[] = "Advertiser {$prog['id']} ({$prog['name']}): HTTP {$status} ({$downloadResult['error']})";
+
+                if ($status === 401 || $status === 403 || $status >= 500) {
+                    throw new RuntimeException("Awin Datafeed Download Error (HTTP {$status}): {$downloadResult['error']}");
+                }
+                Log::warning("Awin feed download skipped for advertiser {$prog['id']} ({$prog['name']}): {$downloadResult['error']}");
+                continue;
             }
 
-            $results = [];
-            foreach ($items as $item) {
-                $dto = $this->normalizeAwinItem($item, $market);
+            $records = $this->datafeedService->parseCsvRecords(
+                $downloadResult['content'],
+                $keywords,
+                $limit - $collectedCount
+            );
+
+            foreach ($records as $record) {
+                if (empty($record['merchant_id'])) {
+                    $record['merchant_id'] = (string) $prog['id'];
+                }
+                if (empty($record['merchant_name'])) {
+                    $record['merchant_name'] = $prog['name'];
+                }
+                if (empty($record['merchant_domain']) && !empty($prog['displayUrl'])) {
+                    $record['merchant_domain'] = parse_url($prog['displayUrl'], PHP_URL_HOST) ?? $prog['displayUrl'];
+                }
+
+                $dto = $this->normalizeAwinItem($record, $market);
                 if ($dto) {
                     $results[] = $dto;
+                    $collectedCount++;
+                    if ($collectedCount >= $limit) {
+                        break;
+                    }
                 }
             }
-
-            return $results;
-        } catch (RuntimeException $re) {
-            throw $re;
-        } catch (Throwable $e) {
-            $latency = (int) round((microtime(true) - $startTime) * 1000);
-            Log::error("Awin search connection error [{$latency}ms]: {$e->getMessage()}");
-            throw new RuntimeException("Awin connection error: " . $e->getMessage(), 0, $e);
         }
+
+        if (empty($results) && !empty($failedFeedErrors) && $collectedCount === 0) {
+            throw new RuntimeException("Awin Datafeed unavailable for joined programmes. " . implode('; ', $failedFeedErrors) . ". Please verify AWIN_DATAFEED_API_KEY / AWIN_DATAFEED_URL in .env.");
+        }
+
+        return $results;
     }
 
     public function normalizeAwinItem(array $item, Market $market): ?NormalizedProductDTO
     {
-        $id = $item['id'] ?? $item['product_id'] ?? null;
+        $id = $item['aw_product_id'] ?? $item['id'] ?? $item['product_id'] ?? null;
         $title = $item['product_name'] ?? $item['title'] ?? null;
 
         if (!$title || !$id) {
@@ -298,12 +337,17 @@ class AwinProvider implements AffiliateProviderInterface
         $identifiers[] = NormalizedIdentifierDTO::from('SKU', $sku);
 
         // Price & Offer
-        $price = isset($item['price']) ? (float) $item['price'] : 0.0;
+        $price = isset($item['search_price']) ? (float) $item['search_price'] : (isset($item['price']) ? (float) $item['price'] : 0.0);
         $originalPrice = isset($item['retail_price']) ? (float) $item['retail_price'] : null;
         $currency = $item['currency'] ?? $this->marketDefaults[$market->code]['currency'] ?? 'EUR';
         $merchantName = $item['merchant_name'] ?? $item['advertiser_name'] ?? 'Awin Partner';
-        $merchantDomain = $item['merchant_domain'] ?? strtolower(str_replace(' ', '', $merchantName)) . '.com';
-        $productUrl = $item['deep_link'] ?? $item['aw_deep_link'] ?? $item['product_url'] ?? '';
+        $merchantDomain = $item['merchant_domain'] ?? strtolower(str_replace(['http://', 'https://', 'www.', ' '], '', $merchantName)) . '.com';
+        $productUrl = $item['aw_deep_link'] ?? $item['deep_link'] ?? $item['product_url'] ?? '';
+
+        $inStock = true;
+        if (isset($item['in_stock'])) {
+            $inStock = in_array(strtolower((string) $item['in_stock']), ['1', 'true', 'yes', 'in_stock', 'in stock', 'instock']);
+        }
 
         $offerDto = new NormalizedOfferDTO(
             retailerDomain: $merchantDomain,
@@ -313,7 +357,7 @@ class AwinProvider implements AffiliateProviderInterface
             price: $price,
             originalPrice: $originalPrice,
             currencyCode: strtoupper($currency),
-            availability: ($item['in_stock'] ?? true) ? 'in_stock' : 'out_of_stock',
+            availability: $inStock ? 'in_stock' : 'out_of_stock',
             condition: 'new',
             affiliateUrl: $productUrl,
             originalUrl: $item['merchant_deep_link'] ?? $productUrl,
@@ -322,8 +366,8 @@ class AwinProvider implements AffiliateProviderInterface
         );
 
         $images = [];
-        if (!empty($item['image_url'] ?? $item['aw_image_url'])) {
-            $imgUrl = $item['image_url'] ?? $item['aw_image_url'];
+        $imgUrl = $item['merchant_image_url'] ?? $item['image_url'] ?? $item['aw_image_url'] ?? null;
+        if (!empty($imgUrl)) {
             $images[] = new NormalizedImageDTO($imgUrl, $title, true, 0);
         }
 
@@ -380,6 +424,6 @@ class AwinProvider implements AffiliateProviderInterface
 
     public function getSupportedCategories(): array
     {
-        return ['Computers', 'Laptops', 'PC Components', 'Monitors', 'Peripherals', 'Smartphones', 'Audio', 'TVs'];
+        return ['Computers', 'Laptops', 'PC Components', 'Monitors', 'Peripherals', 'Smartphones', 'Audio', 'TVs', 'Electronic Accessories'];
     }
 }
