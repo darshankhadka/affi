@@ -1,0 +1,29 @@
+{
+  "name": "arikartech-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ARIKARTECH - Global Technology Shopping Discovery & Price-Comparison Platform",
+  "workspaces": [
+    "admin",
+    "public",
+    "shared"
+  ],
+  "scripts": {
+    "dev:admin": "npm run dev --workspace=admin",
+    "dev:public": "npm run dev --workspace=public",
+    "build:admin": "npm run build --workspace=admin",
+    "build:public": "npm run build --workspace=public",
+    "build:all": "npm run build --workspace=shared && npm run build --workspace=admin && npm run build --workspace=public",
+    "test:backend": "cd backend && php artisan test",
+    "test:all": "npm run test:backend"
+  },
+  "keywords": [
+    "price-comparison",
+    "technology",
+    "affiliate",
+    "seo",
+    "product-discovery"
+  ],
+  "author": "ARIKARTECH Engineering",
+  "license": "UNLICENSED"
+}
