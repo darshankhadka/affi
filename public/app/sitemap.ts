@@ -1,11 +1,10 @@
 import { MetadataRoute } from 'next';
-import { fetchApi } from '@/lib/api';
+import { CANONICAL_MARKETS, CANONICAL_CATEGORIES, CANONICAL_BRANDS } from '@/lib/catalog';
 
 export const dynamic = 'force-static';
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+export default function sitemap(): MetadataRoute.Sitemap {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://arikartech.com';
-  const markets = ['us', 'uk', 'de', 'fr', 'es', 'it', 'nl', 'au', 'nz'];
   const staticPages = ['about', 'privacy', 'terms', 'disclosure', 'contact'];
 
   const entries: MetadataRoute.Sitemap = [
@@ -18,9 +17,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   // Market homepages & static pages
-  for (const m of markets) {
+  for (const m of CANONICAL_MARKETS) {
     entries.push({
-      url: `${siteUrl}/${m}`,
+      url: `${siteUrl}/${m.code}`,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.9,
@@ -28,62 +27,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     for (const page of staticPages) {
       entries.push({
-        url: `${siteUrl}/${m}/${page}`,
+        url: `${siteUrl}/${m.code}/${page}`,
         lastModified: new Date(),
         changeFrequency: 'monthly',
         priority: 0.5,
       });
     }
-  }
 
-  // Fetch real categories and brands if available at build time
-  try {
-    const [categoriesRes, brandsRes, productsRes] = await Promise.all([
-      fetchApi('/categories').catch(() => null),
-      fetchApi('/brands').catch(() => null),
-      fetchApi('/products?per_page=100').catch(() => null),
-    ]);
-
-    const categories = categoriesRes?.data || [];
-    const brands = brandsRes?.data || [];
-    const products = productsRes?.data || [];
-
-    for (const m of markets) {
-      for (const cat of categories) {
-        if (cat.slug) {
-          entries.push({
-            url: `${siteUrl}/${m}/categories/${cat.slug}`,
-            lastModified: new Date(),
-            changeFrequency: 'weekly',
-            priority: 0.8,
-          });
-        }
-      }
-
-      for (const brand of brands) {
-        if (brand.slug) {
-          entries.push({
-            url: `${siteUrl}/${m}/brands/${brand.slug}`,
-            lastModified: new Date(),
-            changeFrequency: 'weekly',
-            priority: 0.7,
-          });
-        }
-      }
-
-      for (const prod of products) {
-        if (prod.slug) {
-          entries.push({
-            url: `${siteUrl}/${m}/products/${prod.slug}`,
-            lastModified: new Date(prod.updated_at || new Date()),
-            changeFrequency: 'daily',
-            priority: 0.9,
-          });
-        }
-      }
+    for (const cat of CANONICAL_CATEGORIES) {
+      entries.push({
+        url: `${siteUrl}/${m.code}/categories/${cat.slug}`,
+        lastModified: new Date(),
+        changeFrequency: 'weekly',
+        priority: 0.8,
+      });
     }
-  } catch {
-    // If API is unconfigured/offline during build, default entries are safely returned
+
+    for (const brand of CANONICAL_BRANDS) {
+      entries.push({
+        url: `${siteUrl}/${m.code}/brands/${brand.slug}`,
+        lastModified: new Date(),
+        changeFrequency: 'weekly',
+        priority: 0.7,
+      });
+    }
   }
 
   return entries;

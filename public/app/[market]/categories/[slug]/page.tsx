@@ -1,10 +1,8 @@
 import React from 'react';
 import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { fetchApi } from '@/lib/api';
-import { ProductCard } from '@/components/product/ProductCard';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { CANONICAL_MARKETS, CANONICAL_CATEGORIES, getCategoryDef } from '@/lib/catalog';
 import { Layers } from 'lucide-react';
+import { CategoryProductsClient } from './CategoryProductsClient';
 
 export const dynamicParams = false;
 
@@ -16,49 +14,11 @@ interface CategoryPageProps {
 }
 
 export async function generateStaticParams() {
-  const markets = ['us', 'uk', 'de', 'fr', 'es', 'it', 'nl', 'au', 'nz'];
-  const defaultCategories = [
-    'laptops',
-    'smartphones',
-    'tablets',
-    'monitors',
-    'cpus',
-    'gpus',
-    'motherboards',
-    'ram',
-    'ssds',
-    'power-supplies',
-    'pc-cases',
-    'routers',
-    'network-switches',
-    'cables-adapters',
-    'keyboards',
-    'mice',
-    'headphones',
-    'tvs',
-    'smartwatches',
-    'audio',
-  ];
-
   const params: { market: string; slug: string }[] = [];
 
-  try {
-    const res = await fetchApi('/categories').catch(() => null);
-    const categories = res?.data || [];
-    const slugs = categories.length > 0 ? categories.map((c: any) => c.slug) : defaultCategories;
-
-    for (const m of markets) {
-      for (const slug of slugs) {
-        if (slug) {
-          params.push({ market: m, slug });
-        }
-      }
-    }
-  } catch {
-    for (const m of markets) {
-      for (const slug of defaultCategories) {
-        params.push({ market: m, slug });
-      }
+  for (const m of CANONICAL_MARKETS) {
+    for (const cat of CANONICAL_CATEGORIES) {
+      params.push({ market: m.code, slug: cat.slug });
     }
   }
 
@@ -67,43 +27,20 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { market, slug } = await params;
+  const category = getCategoryDef(slug);
 
-  try {
-    const res = await fetchApi(`/categories/${slug}`);
-    const cat = res.data;
-    if (!cat) return {};
-
-    return {
-      title: `Best ${cat.name} Deals & Price Comparison (${market.toUpperCase()}) | ARIKARTECH`,
-      description: `Compare prices and discover top-rated ${cat.name} from authorized retailers in ${market.toUpperCase()} on ARIKARTECH.`,
-    };
-  } catch {
-    return { title: 'Category | ARIKARTECH' };
-  }
+  return {
+    title: `Best ${category.name} Deals & Price Comparison (${market.toUpperCase()}) | ARIKARTECH`,
+    description: category.description || `Compare prices and discover top-rated ${category.name} from authorized retailers in ${market.toUpperCase()} on ARIKARTECH.`,
+    alternates: {
+      canonical: `https://arikartech.com/${market}/categories/${slug}`,
+    },
+  };
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { market, slug } = await params;
-
-  let category: any = null;
-  let products: any[] = [];
-
-  try {
-    const [catRes, prodRes] = await Promise.all([
-      fetchApi(`/categories/${slug}`).catch(() => null),
-      fetchApi(`/products?market=${market}&category=${slug}&per_page=24`).catch(() => null),
-    ]);
-
-    category = catRes?.data;
-    products = prodRes?.data || [];
-  } catch {
-    // If not found in API, provide clean fallback structure
-    category = { name: slug.replace(/-/g, ' ').toUpperCase(), slug };
-  }
-
-  if (!category) {
-    category = { name: slug.replace(/-/g, ' ').toUpperCase(), slug };
-  }
+  const category = getCategoryDef(slug);
 
   return (
     <div className="space-y-8">
@@ -121,19 +58,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
         )}
       </div>
 
-      {/* Products Grid */}
-      {products.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} market={market} />
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          title={`No ${category.name} currently indexed in ${market.toUpperCase()}.`}
-          description="New products and live retailer feeds are constantly processed by our bounded ingestion engine."
-        />
-      )}
+      {/* Products Grid (Client Hydrated via API) */}
+      <CategoryProductsClient
+        market={market}
+        categorySlug={slug}
+        categoryName={category.name}
+      />
     </div>
   );
 }

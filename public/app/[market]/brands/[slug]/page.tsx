@@ -1,10 +1,8 @@
 import React from 'react';
 import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { fetchApi } from '@/lib/api';
-import { ProductCard } from '@/components/product/ProductCard';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { CANONICAL_MARKETS, CANONICAL_BRANDS, getBrandDef } from '@/lib/catalog';
 import { Tag } from 'lucide-react';
+import { BrandProductsClient } from './BrandProductsClient';
 
 export const dynamicParams = false;
 
@@ -16,39 +14,11 @@ interface BrandPageProps {
 }
 
 export async function generateStaticParams() {
-  const markets = ['us', 'uk', 'de', 'fr', 'es', 'it', 'nl', 'au', 'nz'];
-  const defaultBrands = [
-    'apple',
-    'dell',
-    'asus',
-    'lenovo',
-    'hp',
-    'samsung',
-    'sony',
-    'intel',
-    'amd',
-    'nvidia',
-  ];
-
   const params: { market: string; slug: string }[] = [];
 
-  try {
-    const res = await fetchApi('/brands').catch(() => null);
-    const brands = res?.data || [];
-    const slugs = brands.length > 0 ? brands.map((b: any) => b.slug) : defaultBrands;
-
-    for (const m of markets) {
-      for (const slug of slugs) {
-        if (slug) {
-          params.push({ market: m, slug });
-        }
-      }
-    }
-  } catch {
-    for (const m of markets) {
-      for (const slug of defaultBrands) {
-        params.push({ market: m, slug });
-      }
+  for (const m of CANONICAL_MARKETS) {
+    for (const b of CANONICAL_BRANDS) {
+      params.push({ market: m.code, slug: b.slug });
     }
   }
 
@@ -57,42 +27,20 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: BrandPageProps): Promise<Metadata> {
   const { market, slug } = await params;
+  const brand = getBrandDef(slug);
 
-  try {
-    const res = await fetchApi(`/brands/${slug}`);
-    const brand = res.data;
-    if (!brand) return {};
-
-    return {
-      title: `Best ${brand.name} Deals & Price Comparison (${market.toUpperCase()}) | ARIKARTECH`,
-      description: `Compare prices and discover verified ${brand.name} hardware from authorized retailers in ${market.toUpperCase()} on ARIKARTECH.`,
-    };
-  } catch {
-    return { title: 'Brand | ARIKARTECH' };
-  }
+  return {
+    title: `Best ${brand.name} Deals & Price Comparison (${market.toUpperCase()}) | ARIKARTECH`,
+    description: brand.description || `Compare prices and discover verified ${brand.name} hardware from authorized retailers in ${market.toUpperCase()} on ARIKARTECH.`,
+    alternates: {
+      canonical: `https://arikartech.com/${market}/brands/${slug}`,
+    },
+  };
 }
 
 export default async function BrandPage({ params }: BrandPageProps) {
   const { market, slug } = await params;
-
-  let brand: any = null;
-  let products: any[] = [];
-
-  try {
-    const [brandRes, prodRes] = await Promise.all([
-      fetchApi(`/brands/${slug}`).catch(() => null),
-      fetchApi(`/products?market=${market}&brand=${slug}&per_page=24`).catch(() => null),
-    ]);
-
-    brand = brandRes?.data;
-    products = prodRes?.data || [];
-  } catch {
-    brand = { name: slug.replace(/-/g, ' ').toUpperCase(), slug };
-  }
-
-  if (!brand) {
-    brand = { name: slug.replace(/-/g, ' ').toUpperCase(), slug };
-  }
+  const brand = getBrandDef(slug);
 
   return (
     <div className="space-y-8">
@@ -106,23 +54,16 @@ export default async function BrandPage({ params }: BrandPageProps) {
           {brand.name} Price Comparison & Deals
         </h1>
         <p className="text-xs text-slate-500 max-w-2xl">
-          Compare verified store offers and hardware specs for {brand.name} products in the {market.toUpperCase()} market.
+          {brand.description || `Compare verified store offers and hardware specs for ${brand.name} products in the ${market.toUpperCase()} market.`}
         </p>
       </div>
 
-      {/* Products Grid */}
-      {products.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} market={market} />
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          title={`No ${brand.name} products currently indexed in ${market.toUpperCase()}.`}
-          description="New merchant inventory feeds are continuously normalized and verified by our bounded catalog engine."
-        />
-      )}
+      {/* Products Grid (Client Hydrated via API) */}
+      <BrandProductsClient
+        market={market}
+        brandSlug={slug}
+        brandName={brand.name}
+      />
     </div>
   );
 }
