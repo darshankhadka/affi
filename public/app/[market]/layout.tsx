@@ -8,6 +8,20 @@ interface MarketLayoutProps {
   params: Promise<{ market: string }>;
 }
 
+export async function generateStaticParams() {
+  return [
+    { market: 'us' },
+    { market: 'uk' },
+    { market: 'de' },
+    { market: 'fr' },
+    { market: 'es' },
+    { market: 'it' },
+    { market: 'nl' },
+    { market: 'au' },
+    { market: 'nz' },
+  ];
+}
+
 export default async function MarketLayout({ children, params }: MarketLayoutProps) {
   const { market } = await params;
 

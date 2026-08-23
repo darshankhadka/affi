@@ -1,17 +1,47 @@
 import React from 'react';
 import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { StructuredData } from '@/components/seo/StructuredData';
 import { OfferComparisonTable } from '@/components/product/OfferComparisonTable';
-import { Tag, ShieldCheck, CheckCircle2, ChevronRight, Laptop, Layers } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Tag, ShieldCheck, ChevronRight, Laptop, Layers } from 'lucide-react';
 import Link from 'next/link';
+
+export const dynamicParams = false;
 
 interface ProductPageProps {
   params: Promise<{
     market: string;
     slug: string;
   }>;
+}
+
+export async function generateStaticParams() {
+  const markets = ['us', 'uk', 'de', 'fr', 'es', 'it', 'nl', 'au', 'nz'];
+  const defaultSlugs = ['catalog'];
+  const params: { market: string; slug: string }[] = [];
+
+  try {
+    const res = await fetchApi('/products?per_page=100').catch(() => null);
+    const products = res?.data || [];
+    const slugs = products.length > 0 ? products.map((p: any) => p.slug) : defaultSlugs;
+
+    for (const m of markets) {
+      for (const slug of slugs) {
+        if (slug) {
+          params.push({ market: m, slug });
+        }
+      }
+    }
+  } catch {
+    for (const m of markets) {
+      for (const slug of defaultSlugs) {
+        params.push({ market: m, slug });
+      }
+    }
+  }
+
+  return params;
 }
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
@@ -22,7 +52,12 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     const product = res.data;
     const seo = res.meta?.seo;
 
-    if (!product) return {};
+    if (!product) {
+      return {
+        title: 'Technology Product Deals & Price Comparison | ARIKARTECH',
+        description: 'Compare prices across verified hardware retailers.',
+      };
+    }
 
     return {
       title: seo?.title || `${product.name} Best Price & Deals | ARIKARTECH`,
@@ -41,7 +76,8 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     };
   } catch {
     return {
-      title: 'Product Not Found | ARIKARTECH',
+      title: 'Technology Product Deals & Price Comparison | ARIKARTECH',
+      description: 'Compare prices across verified hardware retailers.',
     };
   }
 }
@@ -53,15 +89,30 @@ export default async function ProductPage({ params }: ProductPageProps) {
   let structuredData: any = null;
 
   try {
-    const res = await fetchApi(`/products/${slug}?market=${market}`);
-    product = res.data;
-    structuredData = res.meta?.structured_data;
+    const res = await fetchApi(`/products/${slug}?market=${market}`).catch(() => null);
+    product = res?.data;
+    structuredData = res?.meta?.structured_data;
   } catch {
-    notFound();
+    product = null;
   }
 
   if (!product) {
-    notFound();
+    return (
+      <div className="space-y-8">
+        <nav className="flex items-center gap-2 text-xs text-slate-500">
+          <Link href={`/${market}`} className="hover:text-emerald-600">Home</Link>
+          <ChevronRight className="w-3 h-3 text-slate-400" />
+          <span className="text-slate-800 font-medium truncate">Hardware Catalog</span>
+        </nav>
+
+        <EmptyState
+          title="Product listing is updating."
+          description={`Verified store offers and specifications for this hardware model are currently refreshing in the ${market.toUpperCase()} market.`}
+          actionHref={`/${market}`}
+          actionText="Browse Technology Catalog"
+        />
+      </div>
+    );
   }
 
   const bestPrice = product.best_price;

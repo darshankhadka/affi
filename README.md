@@ -60,6 +60,10 @@ npm run build:all
 
 ## Documentation
 Refer to the `docs/` directory for detailed documentation:
+- [Static Export Audit](docs/STATIC_EXPORT_AUDIT.md)
+- [Static Deployment Guide](docs/STATIC_DEPLOYMENT.md)
+- [Static Export Runbook](docs/STATIC_EXPORT_RUNBOOK.md)
+- [Phase 7 Final Report](docs/PHASE7_FINAL_REPORT.md)
 - [Final Launch Audit](docs/FINAL_LAUNCH_AUDIT.md)
 - [Final Production Deployment](docs/FINAL_PRODUCTION_DEPLOYMENT.md)
 - [Final Launch Checklist](docs/FINAL_LAUNCH_CHECKLIST.md)

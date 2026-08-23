@@ -1,60 +1,67 @@
 import React from 'react';
 import { Metadata } from 'next';
-import { FileCheck, AlertTriangle, HelpCircle } from 'lucide-react';
+import { FileText } from 'lucide-react';
 
-export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: 'Terms of Service | ARIKARTECH',
-    description: 'Terms of service and usage conditions for the ARIKARTECH comparison platform.',
-  };
+interface TermsPageProps {
+  params: Promise<{ market: string }>;
 }
 
-export default async function TermsPage() {
+export async function generateStaticParams() {
+  return [
+    { market: 'us' },
+    { market: 'uk' },
+    { market: 'de' },
+    { market: 'fr' },
+    { market: 'es' },
+    { market: 'it' },
+    { market: 'nl' },
+    { market: 'au' },
+    { market: 'nz' },
+  ];
+}
+
+export const metadata: Metadata = {
+  title: 'Terms of Service | ARIKARTECH',
+  description: 'Terms and conditions for utilizing the ARIKARTECH technology comparison engine.',
+};
+
+export default async function TermsPage({ params }: TermsPageProps) {
+  await params;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-sm space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold">
-          <FileCheck className="w-3.5 h-3.5" />
-          <span>Legal Agreement</span>
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+    <div className="max-w-4xl mx-auto space-y-12 py-4">
+      <div className="space-y-4 text-center">
+        <span className="px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-bold uppercase tracking-wider">
+          Legal Agreement
+        </span>
+        <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
           Terms of Service
         </h1>
-        <p className="text-xs text-slate-500 font-mono">
-          Last Updated: August 23, 2026
-        </p>
+        <p className="text-sm text-slate-500">Last updated: August 2026</p>
       </div>
 
-      <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-sm space-y-8 text-xs text-slate-600 leading-relaxed">
-        <section className="space-y-3">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-emerald-600" />
-            1. Informational Service Only
-          </h2>
-          <p>
-            ARIKARTECH provides hardware price comparison and specifications aggregation for informational purposes. While our automated ingestion engines continuously synchronize real-time pricing feeds from authorized merchants, prices, inventory availability, and shipping costs are subject to change on the merchant website at any time without notice.
-          </p>
-        </section>
+      <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200 shadow-sm space-y-6 text-sm text-slate-700 leading-relaxed">
+        <div className="flex items-center gap-2 text-emerald-700 font-bold text-base">
+          <FileText className="w-5 h-5" /> Terms of Platform Use
+        </div>
+        <p>
+          By accessing or using ARIKARTECH (&quot;the Platform&quot;), you agree to be bound by these Terms of Service. If you disagree with any portion of these terms, please discontinue use of the platform.
+        </p>
 
-        <section className="space-y-3">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            2. Retailer Transactions & Fulfillment Disclaimer
-          </h2>
-          <p>
-            ARIKARTECH is not an online store or marketplace seller. We do not sell products, accept customer payments, hold inventory, process orders, or fulfill deliveries. All purchases initiated through referral links on this platform occur entirely on the third-party merchant website under their respective sale terms, warranties, and return policies.
-          </p>
-        </section>
+        <h2 className="text-lg font-bold text-slate-900 pt-3">1. Nature of the Service</h2>
+        <p>
+          ARIKARTECH is a technical search engine and price comparison service for computer hardware, consumer electronics, and accessories. We do not sell, warranty, or ship any products listed on this website.
+        </p>
 
-        <section className="space-y-3">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <HelpCircle className="w-4 h-4 text-emerald-600" />
-            3. Limitation of Liability
-          </h2>
-          <p>
-            ARIKARTECH and its operators shall not be liable for any discrepancies in pricing, defective merchandise, shipping delays, or transactional disputes arising between you and any third-party retailer linked from our platform.
-          </p>
-        </section>
+        <h2 className="text-lg font-bold text-slate-900 pt-3">2. Pricing Accuracy & Disclaimer</h2>
+        <p>
+          Retailer prices, shipping rates, and product availability are subject to rapid change by external merchants. While our ingestion pipeline continuously refreshes pricing data, the final price and purchase terms displayed on the retailer&apos;s checkout page govern all transactions.
+        </p>
+
+        <h2 className="text-lg font-bold text-slate-900 pt-3">3. External Merchant Relationships</h2>
+        <p>
+          Transactions executed with third-party retailers are solely between you and the respective retailer. ARIKARTECH bears no responsibility or liability for product defects, delivery delays, customer service disputes, or billing issues resulting from third-party purchases.
+        </p>
       </div>
     </div>
   );

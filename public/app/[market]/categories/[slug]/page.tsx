@@ -6,11 +6,63 @@ import { ProductCard } from '@/components/product/ProductCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Layers } from 'lucide-react';
 
+export const dynamicParams = false;
+
 interface CategoryPageProps {
   params: Promise<{
     market: string;
     slug: string;
   }>;
+}
+
+export async function generateStaticParams() {
+  const markets = ['us', 'uk', 'de', 'fr', 'es', 'it', 'nl', 'au', 'nz'];
+  const defaultCategories = [
+    'laptops',
+    'smartphones',
+    'tablets',
+    'monitors',
+    'cpus',
+    'gpus',
+    'motherboards',
+    'ram',
+    'ssds',
+    'power-supplies',
+    'pc-cases',
+    'routers',
+    'network-switches',
+    'cables-adapters',
+    'keyboards',
+    'mice',
+    'headphones',
+    'tvs',
+    'smartwatches',
+    'audio',
+  ];
+
+  const params: { market: string; slug: string }[] = [];
+
+  try {
+    const res = await fetchApi('/categories').catch(() => null);
+    const categories = res?.data || [];
+    const slugs = categories.length > 0 ? categories.map((c: any) => c.slug) : defaultCategories;
+
+    for (const m of markets) {
+      for (const slug of slugs) {
+        if (slug) {
+          params.push({ market: m, slug });
+        }
+      }
+    }
+  } catch {
+    for (const m of markets) {
+      for (const slug of defaultCategories) {
+        params.push({ market: m, slug });
+      }
+    }
+  }
+
+  return params;
 }
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
@@ -45,10 +97,13 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     category = catRes?.data;
     products = prodRes?.data || [];
   } catch {
-    notFound();
+    // If not found in API, provide clean fallback structure
+    category = { name: slug.replace(/-/g, ' ').toUpperCase(), slug };
   }
 
-  if (!category) notFound();
+  if (!category) {
+    category = { name: slug.replace(/-/g, ' ').toUpperCase(), slug };
+  }
 
   return (
     <div className="space-y-8">

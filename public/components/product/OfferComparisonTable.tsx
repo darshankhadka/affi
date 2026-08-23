@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { ExternalLink, CheckCircle2, XCircle, Clock, ShieldCheck, Tag } from 'lucide-react';
+import { ExternalLink, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { trackAffiliateClick } from '../seo/GoogleAnalytics';
+import { getOutboundUrl } from '@/lib/api';
 
 export interface RetailerOffer {
   id: number;
@@ -61,7 +62,7 @@ export const OfferComparisonTable: React.FC<OfferComparisonTableProps> = ({ offe
         const currencyCode = offer.currency?.code || 'USD';
         const retailerName = offer.retailer?.name || 'Retailer';
         const isBestDeal = idx === 0 && offer.availability === 'in_stock';
-        const redirectUrl = `/api/out/${offer.id}`;
+        const redirectUrl = getOutboundUrl(offer.id);
 
         const handleAffiliateClick = () => {
           trackAffiliateClick(offer.id, productName, retailerName, offer.price, currencyCode);

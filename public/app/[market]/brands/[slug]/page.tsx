@@ -6,11 +6,53 @@ import { ProductCard } from '@/components/product/ProductCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Tag } from 'lucide-react';
 
+export const dynamicParams = false;
+
 interface BrandPageProps {
   params: Promise<{
     market: string;
     slug: string;
   }>;
+}
+
+export async function generateStaticParams() {
+  const markets = ['us', 'uk', 'de', 'fr', 'es', 'it', 'nl', 'au', 'nz'];
+  const defaultBrands = [
+    'apple',
+    'dell',
+    'asus',
+    'lenovo',
+    'hp',
+    'samsung',
+    'sony',
+    'intel',
+    'amd',
+    'nvidia',
+  ];
+
+  const params: { market: string; slug: string }[] = [];
+
+  try {
+    const res = await fetchApi('/brands').catch(() => null);
+    const brands = res?.data || [];
+    const slugs = brands.length > 0 ? brands.map((b: any) => b.slug) : defaultBrands;
+
+    for (const m of markets) {
+      for (const slug of slugs) {
+        if (slug) {
+          params.push({ market: m, slug });
+        }
+      }
+    }
+  } catch {
+    for (const m of markets) {
+      for (const slug of defaultBrands) {
+        params.push({ market: m, slug });
+      }
+    }
+  }
+
+  return params;
 }
 
 export async function generateMetadata({ params }: BrandPageProps): Promise<Metadata> {
@@ -45,10 +87,12 @@ export default async function BrandPage({ params }: BrandPageProps) {
     brand = brandRes?.data;
     products = prodRes?.data || [];
   } catch {
-    notFound();
+    brand = { name: slug.replace(/-/g, ' ').toUpperCase(), slug };
   }
 
-  if (!brand) notFound();
+  if (!brand) {
+    brand = { name: slug.replace(/-/g, ' ').toUpperCase(), slug };
+  }
 
   return (
     <div className="space-y-8">

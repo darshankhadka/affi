@@ -10,6 +10,20 @@ interface MarketHomePageProps {
   params: Promise<{ market: string }>;
 }
 
+export async function generateStaticParams() {
+  return [
+    { market: 'us' },
+    { market: 'uk' },
+    { market: 'de' },
+    { market: 'fr' },
+    { market: 'es' },
+    { market: 'it' },
+    { market: 'nl' },
+    { market: 'au' },
+    { market: 'nz' },
+  ];
+}
+
 export default async function MarketHomePage({ params }: MarketHomePageProps) {
   const { market } = await params;
 
@@ -52,14 +66,14 @@ export default async function MarketHomePage({ params }: MarketHomePageProps) {
         </div>
 
         <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-slate-900 max-w-4xl mx-auto leading-[1.15]">
-          Discover Hardware. <br />
+          Compare Technology. <br />
           <span className="text-emerald-700">
-            Compare Real Retailer Prices.
+            Find the Best Price.
           </span>
         </h1>
 
         <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
-          Index verified tech retailers, discover specifications, track price drops, and find authorized deals across top stores.
+          Search, compare and discover technology products across trusted retailers in {market.toUpperCase()}.
         </p>
       </section>
 

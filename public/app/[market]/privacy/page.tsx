@@ -1,69 +1,72 @@
 import React from 'react';
 import { Metadata } from 'next';
-import { Shield, Lock, Eye, FileText } from 'lucide-react';
+import { Shield } from 'lucide-react';
 
-export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: 'Privacy Policy | ARIKARTECH',
-    description: 'ARIKARTECH privacy policy and data governance practices.',
-  };
+interface PrivacyPageProps {
+  params: Promise<{ market: string }>;
 }
 
-export default async function PrivacyPage() {
+export async function generateStaticParams() {
+  return [
+    { market: 'us' },
+    { market: 'uk' },
+    { market: 'de' },
+    { market: 'fr' },
+    { market: 'es' },
+    { market: 'it' },
+    { market: 'nl' },
+    { market: 'au' },
+    { market: 'nz' },
+  ];
+}
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy | ARIKARTECH',
+  description: 'Our commitment to privacy, GDPR compliance, and non-invasive shopping analytics.',
+};
+
+export default async function PrivacyPage({ params }: PrivacyPageProps) {
+  await params;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-sm space-y-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-semibold">
-          <Shield className="w-3.5 h-3.5" />
-          <span>Data Governance</span>
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+    <div className="max-w-4xl mx-auto space-y-12 py-4">
+      <div className="space-y-4 text-center">
+        <span className="px-3.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono font-bold uppercase tracking-wider">
+          Compliance & Safety
+        </span>
+        <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight">
           Privacy Policy
         </h1>
-        <p className="text-xs text-slate-500 font-mono">
-          Last Updated: August 23, 2026
-        </p>
+        <p className="text-sm text-slate-500">Last updated: August 2026</p>
       </div>
 
-      <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-sm space-y-8 text-xs text-slate-600 leading-relaxed">
-        <section className="space-y-3">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Lock className="w-4 h-4 text-emerald-600" />
-            1. Privacy-First Philosophy
-          </h2>
-          <p>
-            ARIKARTECH respects your digital privacy. We operate as an informational price comparison platform and do not collect unnecessary Personally Identifiable Information (PII). We do not require visitors to register an account, enter credit card details, or provide personal billing information to use our discovery tools.
-          </p>
-        </section>
+      <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200 shadow-sm space-y-6 text-sm text-slate-700 leading-relaxed">
+        <div className="flex items-center gap-2 text-emerald-700 font-bold text-base">
+          <Shield className="w-5 h-5" /> Privacy by Design
+        </div>
+        <p>
+          At ARIKARTECH, we value user trust and data privacy. We do not sell personal data, do not require user registration to compare tech prices, and do not track users across unauthorized third-party domains.
+        </p>
 
-        <section className="space-y-3">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Eye className="w-4 h-4 text-emerald-600" />
-            2. IP Address Cryptographic Hashing
-          </h2>
-          <p>
-            To monitor affiliate click attribution and prevent fraudulent bot traffic, our servers record outbound referral events. All incoming visitor IP addresses are immediately hashed using one-way SHA-256 cryptographic salts before being stored in our database. Raw IP addresses are never saved to disk or shared with third parties.
-          </p>
-        </section>
+        <h2 className="text-lg font-bold text-slate-900 pt-3">1. Information We Process</h2>
+        <p>
+          When you browse ARIKARTECH or search for products, we collect anonymous usage telemetry to ensure platform availability and detect technical anomalies. Search queries and outbound referral clicks are recorded to optimize catalog discovery.
+        </p>
 
-        <section className="space-y-3">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-emerald-600" />
-            3. Third-Party Retailer Links
-          </h2>
-          <p>
-            Our website contains outbound referral links to third-party merchant retailers (e.g., Best Buy, Dell, Samsung, Currys). When you navigate to an external retailer site, their independent privacy policy and terms govern your transaction and data collection. We encourage reviewing the privacy policies of any retailer you visit.
-          </p>
-        </section>
+        <h2 className="text-lg font-bold text-slate-900 pt-3">2. Cryptographic IP Hashing</h2>
+        <p>
+          To prevent click fraud while respecting user anonymity, visitor IP addresses are immediately hashed using one-way SHA-256 cryptographic salts before being stored for click verification. We never store raw IP addresses in our referral analytics databases.
+        </p>
 
-        <section className="space-y-3">
-          <h2 className="text-base font-bold text-slate-900">
-            4. Contact Data Protection Officer
-          </h2>
-          <p>
-            For any inquiries regarding our privacy standards or data practices, contact our team at: <span className="font-mono font-semibold text-slate-800">privacy@arikartech.com</span>.
-          </p>
-        </section>
+        <h2 className="text-lg font-bold text-slate-900 pt-3">3. Affiliate Links & Cookies</h2>
+        <p>
+          When you click on a retailer deal (e.g. &quot;BUY AT BEST PRICE&quot;), you are securely redirected to the merchant&apos;s website. The merchant or affiliate network may set standard tracking cookies on your device to attribute legitimate referral purchases.
+        </p>
+
+        <h2 className="text-lg font-bold text-slate-900 pt-3">4. GDPR & CCPA Compliance</h2>
+        <p>
+          Residents of the European Union, United Kingdom, and California enjoy rights to data transparency. Because ARIKARTECH operates without persistent user accounts or personally identifiable profiles, minimal non-identifiable telemetry is retained.
+        </p>
       </div>
     </div>
   );
