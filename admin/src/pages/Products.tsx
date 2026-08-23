@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { Badge } from '../components/ui/Badge';
@@ -127,6 +128,13 @@ export const Products: React.FC = () => {
       header: 'Actions',
       accessor: (p) => (
         <div className="flex items-center gap-2">
+          <Link
+            to={`/catalog/products/${p.id}`}
+            className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-emerald-400 hover:bg-slate-700 transition-colors"
+            title="Inspect Canonical Product"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
           <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-rose-400">
             <Trash2 className="w-3.5 h-3.5" />
           </Button>

@@ -91,6 +91,7 @@ Route::middleware(['auth:sanctum', 'role:Super Admin|Admin|Editor|Analyst'])->pr
     // Affiliates & Retailers
     Route::get('/affiliates/providers', [AffiliateAdminController::class, 'providers']);
     Route::put('/affiliates/providers/{id}', [AffiliateAdminController::class, 'updateProvider'])->middleware('role:Super Admin|Admin');
+    Route::post('/affiliates/providers/{id}/test', [AffiliateAdminController::class, 'testProviderConnection'])->middleware('role:Super Admin|Admin');
     Route::get('/affiliates/retailers', [AffiliateAdminController::class, 'retailers']);
     Route::post('/affiliates/retailers', [AffiliateAdminController::class, 'storeRetailer'])->middleware('role:Super Admin|Admin');
 

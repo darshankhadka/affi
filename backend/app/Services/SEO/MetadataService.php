@@ -8,6 +8,11 @@ use App\Models\Product;
 
 class MetadataService
 {
+    public function __construct(protected ?SeoEligibilityService $eligibilityService = null)
+    {
+        $this->eligibilityService = $eligibilityService ?? new SeoEligibilityService();
+    }
+
     /**
      * Generate metadata payload for a Product page in a given Market
      */
@@ -35,11 +40,13 @@ class MetadataService
             $hreflang[$m->hreflang] = "{$siteUrl}/{$m->code}/products/{$product->slug}";
         }
 
+        $robots = $this->eligibilityService->getRobotsDirective($product, $market);
+
         return [
             'title' => $title,
             'description' => substr($description, 0, 160),
             'canonical' => $canonicalUrl,
-            'robots' => 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
+            'robots' => $robots,
             'hreflang' => $hreflang,
             'open_graph' => [
                 'title' => $title,

@@ -87,4 +87,25 @@ class AffiliateAdminController extends BaseApiController
 
         return $this->success(new RetailerResource($retailer), 'Retailer registered successfully.', 201);
     }
+
+    /**
+     * Test live API connection for an affiliate provider
+     */
+    public function testProviderConnection(int $id, \App\Services\Affiliate\AffiliateRegistry $registry): JsonResponse
+    {
+        $provider = AffiliateProvider::findOrFail($id);
+
+        if (!$registry->has($provider->code)) {
+            return $this->error("Provider driver for '{$provider->code}' is not loaded.", 400);
+        }
+
+        $connector = $registry->get($provider->code);
+        $result = $connector->testConnection($provider);
+
+        // Update provider status based on actual connection test
+        $newStatus = $result['connected'] ? 'connected' : ($result['status'] === 'not_configured' ? 'disconnected' : 'error');
+        $provider->update(['status' => $newStatus]);
+
+        return $this->success($result, 'Provider connection test executed.');
+    }
 }

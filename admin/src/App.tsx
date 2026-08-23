@@ -6,6 +6,7 @@ import { AdminLayout } from './components/layout/AdminLayout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Products } from './pages/Products';
+import { ProductDetail } from './pages/ProductDetail';
 import { Categories } from './pages/Categories';
 import { Brands } from './pages/Brands';
 import { ProductMatching } from './pages/ProductMatching';
@@ -36,6 +37,7 @@ export const App: React.FC = () => {
               
               {/* Catalog */}
               <Route path="catalog/products" element={<Products />} />
+              <Route path="catalog/products/:id" element={<ProductDetail />} />
               <Route path="catalog/categories" element={<Categories />} />
               <Route path="catalog/brands" element={<Brands />} />
               <Route path="catalog/matching" element={<ProductMatching />} />

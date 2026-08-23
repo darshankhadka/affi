@@ -79,18 +79,35 @@ export const AffiliateProviders: React.FC = () => {
     {
       header: 'Actions',
       accessor: (p) => (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            setEditingProvider(p);
-            setAccessKey('');
-            setSecretKey('');
-          }}
-          icon={<Settings2 className="w-3.5 h-3.5" />}
-        >
-          Configure
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              try {
+                const res = await api.post(`/admin/affiliates/providers/${p.id}/test`);
+                alert(`Connection Test: ${res.data.data.message}`);
+                fetchProviders();
+              } catch (err: any) {
+                alert(`Connection Test Failed: ${err.response?.data?.message || 'Error executing test'}`);
+              }
+            }}
+          >
+            Test Connection
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setEditingProvider(p);
+              setAccessKey('');
+              setSecretKey('');
+            }}
+            icon={<Settings2 className="w-3.5 h-3.5" />}
+          >
+            Configure
+          </Button>
+        </div>
       ),
     },
   ];

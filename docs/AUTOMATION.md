@@ -1,4 +1,4 @@
-# ARIKARTECH CPU-Safe Automation Architecture
+# ARIKARTECH CPU-Safe Automation Architecture (Phase 2)
 
 ## 1. Principles of CPU Safety on Shared Hosting
 Shared hosting environments strictly constrain CPU burst time, concurrent processes, and available RAM. Uncontrolled batch processing or infinite worker loops will saturate shared CPU quotas.
@@ -13,35 +13,31 @@ To guarantee hosting stability:
 
 ---
 
-## 2. Configurable Limits (`config/automation.php`)
-```php
-return [
-    'max_items_per_run' => (int) env('AUTOMATION_MAX_ITEMS_PER_RUN', 100),
-    'max_runtime_seconds' => (int) env('AUTOMATION_MAX_RUNTIME_SECONDS', 240),
-    'max_api_requests' => (int) env('AUTOMATION_MAX_API_REQUESTS_PER_RUN', 50),
-    'max_retries' => (int) env('AUTOMATION_MAX_RETRIES', 3),
-    'chunk_size' => (int) env('AUTOMATION_CHUNK_SIZE', 25),
-];
+## 2. Ingestion Commands & Batch Operations
+
+### Bounded Provider Ingestion
+```bash
+php artisan automation:ingest-provider --provider=amazon --market=us --limit=25 --keywords="Laptops"
+```
+
+### Bounded Price & Availability Refresh
+```bash
+php artisan automation:refresh-prices
+```
+
+### Full Best Price Index Materialization
+```bash
+php artisan pricing:recalculate-all
 ```
 
 ---
 
-## 3. Automation States & Telemetry
-Every automated batch records an entry in the `automation_jobs` table with:
+## 3. Automation Job Telemetry & Logging
+Every automated batch registers an immutable record in `automation_jobs`:
+- `batch_type`: `price_refresh`, `provider_ingestion`, `recalculate_all`
 - `status`: `pending`, `processing`, `completed`, `failed`, `skipped`
-- `processed_items` & `failed_items`
+- `total_items`, `processed_items`, `failed_items`
 - `cpu_time_ms` (elapsed millisecond CPU duration)
 - `memory_peak_bytes` (peak RAM utilized)
 - `error_log` (truncated stack traces of failures)
-
----
-
-## 4. Cron Configuration
-On shared hosting (cPanel / DirectAdmin / Crontab), schedule the standard Laravel Scheduler:
-```bash
-* * * * * cd /path/to/backend && php artisan schedule:run >> /dev/null 2>&1
-```
-Or run the bounded price refresh command directly every 30 minutes:
-```bash
-*/30 * * * * cd /path/to/backend && php artisan automation:refresh-prices >> /dev/null 2>&1
-```
+- `metadata` (provider, market, keywords, limits)

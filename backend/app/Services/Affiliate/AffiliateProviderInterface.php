@@ -58,6 +58,18 @@ interface AffiliateProviderInterface
     public function syncCatalogBatch(Market $market, int $limit = 50, ?string $cursor = null): array;
 
     /**
+     * Test live API connection with currently configured credentials
+     *
+     * @return array{
+     *   connected: bool,
+     *   status: string, // 'connected', 'not_configured', 'invalid_credentials', 'rate_limited', 'error'
+     *   message: string,
+     *   latency_ms: ?int
+     * }
+     */
+    public function testConnection(AffiliateProvider $provider): array;
+
+    /**
      * Rate limit (requests per minute)
      */
     public function getRateLimit(): int;

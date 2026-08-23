@@ -75,6 +75,17 @@ class ProductController extends BaseApiController
         $perPage = min((int) $request->input('per_page', 20), 50);
         $products = $query->paginate($perPage);
 
+        // Record search query intelligence
+        if ($search) {
+            \App\Models\SearchLog::create([
+                'query' => substr($search, 0, 250),
+                'market_id' => $market?->id,
+                'results_count' => $products->total(),
+                'ip_hash' => hash('sha256', $request->ip() . config('app.key')),
+                'created_at' => now(),
+            ]);
+        }
+
         // Attach resolved single bestPrice property for easy frontend access
         $products->getCollection()->transform(function ($prod) use ($market) {
             $prod->setRelation('bestPrice', $market ? $prod->bestPrices->firstWhere('market_id', $market->id) : $prod->bestPrices->first());

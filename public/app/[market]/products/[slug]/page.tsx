@@ -211,6 +211,39 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
         </section>
       )}
+
+      {/* Real Price History Section */}
+      {product.price_history && product.price_history.length > 0 && (
+        <section className="space-y-6 pt-6">
+          <div className="border-b border-slate-800 pb-4">
+            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              Verified Price History & Volatility
+            </h2>
+          </div>
+
+          <div className="glass-card rounded-2xl p-6 overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-500 font-mono">
+                  <th className="pb-3">Recorded Date</th>
+                  <th className="pb-3">Price</th>
+                  <th className="pb-3">Availability</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono">
+                {product.price_history.slice(-10).map((ph: any, pIdx: number) => (
+                  <tr key={pIdx}>
+                    <td className="py-2.5 text-slate-400">{new Date(ph.recorded_at).toLocaleDateString()}</td>
+                    <td className="py-2.5 text-emerald-400 font-bold">{currencySymbol}{Number(ph.price).toFixed(2)}</td>
+                    <td className="py-2.5 text-slate-300 capitalize">{ph.availability}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
