@@ -29,6 +29,16 @@ class Market extends Model
         return $this->belongsTo(Currency::class, 'default_currency_id');
     }
 
+    public function currency()
+    {
+        return $this->belongsTo(Currency::class, 'default_currency_id');
+    }
+
+    public function getCurrencyIdAttribute(): ?int
+    {
+        return $this->default_currency_id;
+    }
+
     public function countries()
     {
         return $this->hasMany(Country::class);

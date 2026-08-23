@@ -158,4 +158,82 @@ class AwinProviderTest extends TestCase
         $this->assertEquals('in_stock', $dto->offer->availability);
         $this->assertCount(2, $dto->specifications);
     }
+
+    public function test_search_products_throws_exception_on_api_error(): void
+    {
+        $this->artisan('system:init-foundation');
+        $market = Market::where('code', 'gb')->first();
+
+        Http::fake([
+            'https://api.awin.com/publishers/*/productsearch*' => Http::response('Request not allowed by policy', 403),
+        ]);
+
+        $provider = AffiliateProvider::where('code', 'awin')->first();
+        $provider->update([
+            'is_active' => true,
+            'config' => ['api_token' => 'TEST_TOKEN', 'publisher_id' => '12345'],
+        ]);
+
+        $connector = new AwinProvider();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Awin API HTTP 403 Error');
+
+        $connector->searchProducts('laptop', $market);
+    }
+
+    public function test_generate_affiliate_url_returns_target_url_when_no_advertiser_id(): void
+    {
+        $this->artisan('system:init-foundation');
+        $market = Market::where('code', 'gb')->first();
+
+        $provider = AffiliateProvider::where('code', 'awin')->first();
+        $provider->update([
+            'is_active' => true,
+            'config' => ['api_token' => 'TEST_TOKEN', 'publisher_id' => '12345'],
+        ]);
+
+        $retailer = Retailer::create([
+            'name' => 'Unknown Shop',
+            'slug' => 'unknown-shop',
+            'domain' => 'unknown.co.uk',
+            'affiliate_provider_id' => $provider->id,
+            'affiliate_program_id' => null, // No program ID configured
+            'is_active' => true,
+        ]);
+
+        $brand = Brand::firstOrCreate(['slug' => 'dell'], ['name' => 'Dell', 'is_active' => true]);
+        $category = Category::firstOrCreate(['slug' => 'laptops'], ['name' => 'Laptops', 'is_active' => true]);
+
+        $product = Product::create([
+            'brand_id' => $brand->id,
+            'category_id' => $category->id,
+            'name' => 'Test Laptop',
+            'slug' => 'test-laptop',
+            'status' => 'published',
+        ]);
+
+        $offer = Offer::create([
+            'product_id' => $product->id,
+            'retailer_id' => $retailer->id,
+            'market_id' => $market->id,
+            'currency_id' => $market->default_currency_id,
+            'sku' => 'TEST-SKU-1',
+            'title' => 'Test Laptop at Unknown Shop',
+            'affiliate_url' => 'https://unknown.co.uk/products/laptop',
+            'original_url' => 'https://unknown.co.uk/products/laptop',
+            'price' => 999.00,
+            'availability' => 'in_stock',
+            'condition' => 'new',
+            'is_active' => true,
+        ]);
+
+        $connector = new AwinProvider();
+        $url = $connector->generateAffiliateUrl($offer, $market);
+
+        // Must not contain fake 12345 fallback; must return target URL directly
+        $this->assertEquals('https://unknown.co.uk/products/laptop', $url);
+        $this->assertStringNotContainsString('awinmid=12345', $url);
+    }
 }
+

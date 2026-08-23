@@ -12,20 +12,31 @@ use App\Models\Market;
 use App\Models\Offer;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Throwable;
 
 class AwinProvider implements AffiliateProviderInterface
 {
     /**
-     * Regional Awin feed/API currency defaults
+     * Regional Awin feed/API currency defaults (Europe + UK focused)
      */
     protected array $marketDefaults = [
+        'gb' => ['currency' => 'GBP', 'domain' => 'awin1.com'],
         'uk' => ['currency' => 'GBP', 'domain' => 'awin1.com'],
         'de' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
         'fr' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
         'it' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
         'es' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
         'nl' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
+        'be' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
+        'at' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
+        'ie' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
+        'pt' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
+        'fi' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
+        'se' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
+        'dk' => ['currency' => 'DKK', 'domain' => 'awin1.com'],
+        'pl' => ['currency' => 'PLN', 'domain' => 'awin1.com'],
+        'cz' => ['currency' => 'CZK', 'domain' => 'awin1.com'],
         'us' => ['currency' => 'USD', 'domain' => 'awin1.com'],
     ];
 
@@ -69,18 +80,21 @@ class AwinProvider implements AffiliateProviderInterface
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$apiToken}",
                 'User-Agent' => 'ARIKARTECH-ProductEngine/1.0',
-            ])->timeout(5)->get("https://api.awin.com/publishers/{$publisherId}/programmes", [
+            ])->timeout(8)->get("https://api.awin.com/publishers/{$publisherId}/programmes", [
                 'relationship' => 'joined',
             ]);
 
             $latency = (int) round((microtime(true) - $startTime) * 1000);
 
             if ($response->successful()) {
+                $programmes = $response->json();
+                $count = is_array($programmes) ? count($programmes) : 0;
                 return [
                     'connected' => true,
                     'status' => 'connected',
-                    'message' => 'Successfully connected to Awin Publisher API.',
+                    'message' => "Successfully connected to Awin Publisher API ({$count} joined programmes).",
                     'latency_ms' => $latency,
+                    'programmes_count' => $count,
                 ];
             }
 
@@ -88,7 +102,7 @@ class AwinProvider implements AffiliateProviderInterface
                 return [
                     'connected' => false,
                     'status' => 'invalid_credentials',
-                    'message' => 'Awin API returned unauthorized. Please verify API Token & Publisher ID.',
+                    'message' => 'Awin API returned unauthorized (401/403). Please verify API Token & Publisher ID permissions.',
                     'latency_ms' => $latency,
                 ];
             }
@@ -96,7 +110,7 @@ class AwinProvider implements AffiliateProviderInterface
             return [
                 'connected' => false,
                 'status' => 'error',
-                'message' => "Awin API HTTP Error {$response->status()}: " . $response->body(),
+                'message' => "Awin API HTTP Error {$response->status()}: " . substr($response->body(), 0, 300),
                 'latency_ms' => $latency,
             ];
         } catch (Throwable $e) {
@@ -124,9 +138,13 @@ class AwinProvider implements AffiliateProviderInterface
             return $targetUrl;
         }
 
-        $advertiserId = $offer->retailer?->affiliate_program_id ?? $config['default_advertiser_id'] ?? '12345';
-        $encodedTarget = urlencode($targetUrl);
+        $advertiserId = $offer->retailer?->affiliate_program_id ?? $config['default_advertiser_id'] ?? null;
+        if (empty($advertiserId)) {
+            Log::warning("Awin affiliate URL generation skipped: No advertiser program ID found for retailer '{$offer->retailer?->name}'.");
+            return $targetUrl;
+        }
 
+        $encodedTarget = urlencode($targetUrl);
         $clickRef = $customSubId ? preg_replace('/[^a-zA-Z0-9_-]/', '', substr($customSubId, 0, 50)) : 'arikartech';
 
         return "https://www.awin1.com/cread.php?awinmid={$advertiserId}&awinaffid={$publisherId}&clickref={$clickRef}&ued={$encodedTarget}";
@@ -142,31 +160,59 @@ class AwinProvider implements AffiliateProviderInterface
         return [];
     }
 
+    /**
+     * Search products on Awin API with explicit diagnostics and error reporting
+     *
+     * @throws RuntimeException on API failure
+     */
     public function searchProducts(string $keywords, Market $market, ?string $category = null, int $limit = 20): array
     {
         $provider = AffiliateProvider::where('code', 'awin')->first();
         if (!$provider || !$this->isConnected($provider)) {
-            return [];
+            throw new RuntimeException("Awin provider is disconnected or missing credentials.");
         }
 
         $config = $provider->config ?? [];
         $apiKey = $config['api_token'] ?? config('services.awin.api_token');
         $publisherId = $config['publisher_id'] ?? config('services.awin.publisher_id');
 
+        $endpoint = "https://api.awin.com/publishers/{$publisherId}/productsearch";
+        $lang = in_array($market->code, ['gb', 'uk', 'ie']) ? 'en' : $market->code;
+        $params = [
+            'query' => $keywords,
+            'limit' => min($limit, 50),
+            'language' => $lang,
+        ];
+
+        $startTime = microtime(true);
         try {
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$apiKey}",
-            ])->timeout(8)->get("https://api.awin.com/publishers/{$publisherId}/productsearch", [
-                'query' => $keywords,
-                'limit' => min($limit, 50),
-                'language' => $market->code === 'uk' ? 'en' : $market->code,
-            ]);
+                'User-Agent' => 'ARIKARTECH-ProductEngine/1.0',
+            ])->timeout(10)->get($endpoint, $params);
+
+            $latency = (int) round((microtime(true) - $startTime) * 1000);
+            $status = $response->status();
 
             if (!$response->successful()) {
+                $bodyPreview = substr($response->body(), 0, 300);
+                Log::warning("Awin search API HTTP {$status} [{$latency}ms]: {$bodyPreview}", [
+                    'endpoint' => $endpoint,
+                    'market' => $market->code,
+                    'keywords' => $keywords,
+                ]);
+
+                throw new RuntimeException("Awin API HTTP {$status} Error: {$bodyPreview}");
+            }
+
+            $raw = $response->json();
+            $items = $raw['products'] ?? $raw['data'] ?? (is_array($raw) && isset($raw[0]) ? $raw : []);
+
+            if (empty($items)) {
+                Log::info("Awin search returned 0 items for '{$keywords}' in market '{$market->code}' [{$latency}ms].");
                 return [];
             }
 
-            $items = $response->json()['products'] ?? [];
             $results = [];
             foreach ($items as $item) {
                 $dto = $this->normalizeAwinItem($item, $market);
@@ -176,9 +222,12 @@ class AwinProvider implements AffiliateProviderInterface
             }
 
             return $results;
+        } catch (RuntimeException $re) {
+            throw $re;
         } catch (Throwable $e) {
-            Log::error("Awin search error: {$e->getMessage()}");
-            return [];
+            $latency = (int) round((microtime(true) - $startTime) * 1000);
+            Log::error("Awin search connection error [{$latency}ms]: {$e->getMessage()}");
+            throw new RuntimeException("Awin connection error: " . $e->getMessage(), 0, $e);
         }
     }
 
@@ -278,21 +327,21 @@ class AwinProvider implements AffiliateProviderInterface
 
     public function getRateLimit(): int
     {
-        return 120; // 120 requests per minute
+        return 60; // 60 requests per minute
     }
 
     public function getSupportedMarkets(): array
     {
-        return ['uk', 'de', 'fr', 'it', 'es', 'nl', 'us'];
+        return ['gb', 'de', 'fr', 'nl', 'es', 'it', 'be', 'at', 'ie', 'pt', 'fi', 'se', 'dk', 'pl', 'cz', 'us', 'uk'];
     }
 
     public function getSupportedCurrencies(): array
     {
-        return ['GBP', 'EUR', 'USD'];
+        return ['GBP', 'EUR', 'DKK', 'PLN', 'CZK', 'USD'];
     }
 
     public function getSupportedCategories(): array
     {
-        return ['Laptops', 'Smartphones', 'GPUs', 'CPUs', 'Monitors', 'Networking', 'Storage'];
+        return ['Computers', 'Laptops', 'PC Components', 'Monitors', 'Peripherals', 'Smartphones', 'Audio', 'TVs'];
     }
 }

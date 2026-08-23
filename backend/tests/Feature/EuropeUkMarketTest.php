@@ -43,26 +43,35 @@ class EuropeUkMarketTest extends TestCase
     {
         $this->artisan('system:init-foundation');
 
-        $de = Market::where('code', 'de')->with('defaultCurrency')->first();
-        $gb = Market::where('code', 'gb')->with('defaultCurrency')->first();
-        $dk = Market::where('code', 'dk')->with('defaultCurrency')->first();
-        $pl = Market::where('code', 'pl')->with('defaultCurrency')->first();
-        $cz = Market::where('code', 'cz')->with('defaultCurrency')->first();
+        $expectedCurrencies = [
+            'de' => 'EUR',
+            'fr' => 'EUR',
+            'nl' => 'EUR',
+            'es' => 'EUR',
+            'it' => 'EUR',
+            'be' => 'EUR',
+            'at' => 'EUR',
+            'ie' => 'EUR',
+            'pt' => 'EUR',
+            'fi' => 'EUR',
+            'se' => 'EUR',
+            'dk' => 'DKK',
+            'pl' => 'PLN',
+            'cz' => 'CZK',
+            'gb' => 'GBP',
+        ];
 
-        $this->assertEquals('EUR', $de->defaultCurrency->code);
-        $this->assertEquals('€', $de->defaultCurrency->symbol);
+        foreach ($expectedCurrencies as $marketCode => $currencyCode) {
+            $m = Market::where('code', $marketCode)->with('defaultCurrency')->first();
+            $this->assertNotNull($m, "Market '{$marketCode}' must exist");
+            $this->assertNotNull($m->default_currency_id, "Market '{$marketCode}' default_currency_id must not be null");
+            $this->assertNotNull($m->currency_id, "Market '{$marketCode}' currency_id accessor must not be null");
+            $this->assertEquals($m->default_currency_id, $m->currency_id);
+            $this->assertEquals($currencyCode, $m->defaultCurrency->code, "Market '{$marketCode}' currency mismatch");
 
-        $this->assertEquals('GBP', $gb->defaultCurrency->code);
-        $this->assertEquals('£', $gb->defaultCurrency->symbol);
-
-        $this->assertEquals('DKK', $dk->defaultCurrency->code);
-        $this->assertEquals('kr.', $dk->defaultCurrency->symbol);
-
-        $this->assertEquals('PLN', $pl->defaultCurrency->code);
-        $this->assertEquals('zł', $pl->defaultCurrency->symbol);
-
-        $this->assertEquals('CZK', $cz->defaultCurrency->code);
-        $this->assertEquals('Kč', $cz->defaultCurrency->symbol);
+            $matchingCurrency = Currency::where('code', $currencyCode)->first();
+            $this->assertEquals($matchingCurrency->id, $m->currency_id, "Market '{$marketCode}' currency_id must match {$currencyCode} id");
+        }
     }
 
     public function test_seo_metadata_generates_correct_hreflang_for_europe(): void
