@@ -41,8 +41,10 @@ class StructuredDataService
             $schema['mpn'] = $product->model_number;
         }
 
-        if ($product->canonical_gtin) {
-            $schema['gtin13'] = $product->canonical_gtin;
+        if ($product->canonical_ean) {
+            $schema['gtin13'] = $product->canonical_ean;
+        } elseif ($product->canonical_upc) {
+            $schema['gtin12'] = $product->canonical_upc;
         }
 
         $bestPrice = $product->bestPrices()->where('market_id', $market->id)->first();
