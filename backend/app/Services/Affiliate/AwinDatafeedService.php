@@ -321,6 +321,9 @@ class AwinDatafeedService
             $cleanHeaders = [];
             $records = [];
             $bytesReceived = 0;
+            $rowsExamined = 0;
+            $rowsSkipped = 0;
+            $skipReasons = [];
             $searchTerms = $keywords ? array_filter(explode(' ', strtolower(trim($keywords)))) : [];
             $expectedCurrency = $market ? strtoupper($market->defaultCurrency?->code ?? $market->currency?->code ?? '') : null;
 
@@ -376,6 +379,8 @@ class AwinDatafeedService
                         continue;
                     }
 
+                    $rowsExamined++;
+
                     // 2. Data line = CSV Row
                     $stream = fopen('php://memory', 'r+');
                     fwrite($stream, $line);
@@ -384,6 +389,8 @@ class AwinDatafeedService
                     fclose($stream);
 
                     if (!is_array($row) || empty($row)) {
+                        $rowsSkipped++;
+                        $skipReasons['MALFORMED_CSV_ROW'] = ($skipReasons['MALFORMED_CSV_ROW'] ?? 0) + 1;
                         continue;
                     }
 
@@ -400,13 +407,17 @@ class AwinDatafeedService
 
                     $record = array_combine($cleanHeaders, $row);
                     if (!$record || empty($record['product_name'] ?? $record['title'] ?? null)) {
+                        $rowsSkipped++;
+                        $skipReasons['MISSING_PRODUCT_NAME'] = ($skipReasons['MISSING_PRODUCT_NAME'] ?? 0) + 1;
                         continue;
                     }
 
-                    // Market currency compatibility filter if applicable
+                    // Market currency compatibility filter (e.g. GB expects GBP, DE expects EUR)
                     if ($expectedCurrency && !empty($record['currency'])) {
                         $recCurrency = strtoupper(trim((string) $record['currency']));
-                        if ($recCurrency !== $expectedCurrency && $recCurrency !== 'EUR' && $expectedCurrency !== 'EUR') {
+                        if ($recCurrency !== $expectedCurrency) {
+                            $rowsSkipped++;
+                            $skipReasons['MARKET_CURRENCY_MISMATCH'] = ($skipReasons['MARKET_CURRENCY_MISMATCH'] ?? 0) + 1;
                             continue;
                         }
                     }
@@ -433,6 +444,8 @@ class AwinDatafeedService
                         }
 
                         if (!$allMatch) {
+                            $rowsSkipped++;
+                            $skipReasons['KEYWORD_MISMATCH'] = ($skipReasons['KEYWORD_MISMATCH'] ?? 0) + 1;
                             continue;
                         }
                     }
@@ -443,7 +456,9 @@ class AwinDatafeedService
                         $progressCallback([
                             'bytes_received' => $bytesReceived,
                             'elapsed_ms' => (int) round((microtime(true) - $t0) * 1000),
+                            'rows_examined' => $rowsExamined,
                             'rows_parsed' => count($records),
+                            'rows_skipped' => $rowsSkipped,
                         ]);
                     }
 
@@ -463,6 +478,10 @@ class AwinDatafeedService
                 'headers' => $headerMap,
                 'compression' => $compression,
                 'bytes_received' => $bytesReceived,
+                'rows_examined' => $rowsExamined,
+                'rows_accepted' => count($records),
+                'rows_skipped' => $rowsSkipped,
+                'skip_reasons' => $skipReasons,
                 'latency_ms' => $elapsed,
                 'ttfb_ms' => $ttfb,
                 'error_code' => null,

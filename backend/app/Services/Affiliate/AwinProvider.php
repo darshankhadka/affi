@@ -371,7 +371,23 @@ class AwinProvider implements AffiliateProviderInterface
 
         $currency = $item['currency'] ?? $this->marketDefaults[$market->code]['currency'] ?? 'EUR';
         $merchantName = $item['merchant_name'] ?? $item['merchant_id'] ?? 'Awin Partner';
-        $merchantDomain = $item['merchant_domain'] ?? strtolower(str_replace(['http://', 'https://', 'www.', ' '], '', (string) $merchantName)) . '.com';
+        
+        $merchantDomain = null;
+        if (!empty($item['merchant_domain'])) {
+            $merchantDomain = strtolower(trim((string) $item['merchant_domain']));
+        } elseif (!empty($item['merchant_deep_link'])) {
+            $merchantDomain = parse_url($item['merchant_deep_link'], PHP_URL_HOST);
+        } elseif (!empty($item['product_url'])) {
+            $merchantDomain = parse_url($item['product_url'], PHP_URL_HOST);
+        } elseif (!empty($item['displayUrl'])) {
+            $merchantDomain = parse_url($item['displayUrl'], PHP_URL_HOST);
+        }
+
+        if (!empty($merchantDomain)) {
+            $merchantDomain = preg_replace('/^www\./i', '', strtolower($merchantDomain));
+        } else {
+            $merchantDomain = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $merchantName)) . '.com';
+        }
 
         // Deep links
         $affiliateUrl = $item['aw_deep_link'] ?? $item['deep_link'] ?? $item['product_url'] ?? '';

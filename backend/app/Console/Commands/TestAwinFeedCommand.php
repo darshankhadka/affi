@@ -149,9 +149,19 @@ class TestAwinFeedCommand extends Command
             return Command::FAILURE;
         }
 
-        $records = $streamResult['records'];
-        $this->info("\nParsed Records Matching Criteria: " . count($records));
+        $this->line("\n--- STREAMING PERFORMANCE & COUNTS ---");
+        $this->line("Rows Examined: <comment>" . ($streamResult['rows_examined'] ?? count($streamResult['records'])) . "</comment>");
+        $this->line("Rows Accepted: <info>" . count($streamResult['records']) . "</info>");
+        $this->line("Rows Skipped: <comment>" . ($streamResult['rows_skipped'] ?? 0) . "</comment>");
+        
+        if (!empty($streamResult['skip_reasons'])) {
+            $this->line("Skip Reasons Breakdown:");
+            foreach ($streamResult['skip_reasons'] as $reason => $cnt) {
+                $this->line("  - <comment>{$reason}</comment>: {$cnt}");
+            }
+        }
 
+        $records = $streamResult['records'];
         $normalizedCount = 0;
         foreach ($records as $idx => $record) {
             if (empty($record['merchant_id'])) {
@@ -165,7 +175,7 @@ class TestAwinFeedCommand extends Command
             if ($dto) {
                 $normalizedCount++;
                 if ($normalizedCount <= 3) {
-                    $this->line("\n--- Product #" . ($idx + 1) . " ---");
+                    $this->line("\n--- Sample Product #" . ($idx + 1) . " ---");
                     $this->line("Name: <info>{$dto->name}</info>");
                     $this->line("Brand: <comment>{$dto->brandName}</comment>");
                     $this->line("Model / MPN: <comment>" . ($dto->canonicalMpn ?? 'N/A') . "</comment>");

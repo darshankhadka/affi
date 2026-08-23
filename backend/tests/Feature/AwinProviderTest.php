@@ -560,4 +560,113 @@ class AwinProviderTest extends TestCase
         $this->assertFalse($result['connected']);
         $this->assertEquals('provider_server_error', $result['status']);
     }
+
+    public function test_market_currency_mismatch_is_skipped_and_tracked(): void
+    {
+        $this->artisan('system:init-foundation');
+        $marketDe = Market::where('code', 'de')->first(); // expects EUR
+
+        // CSV containing a GBP product and a EUR product
+        $csvContent = implode(',', [
+            'aw_product_id', 'product_name', 'merchant_product_id', 'merchant_id', 'search_price', 'currency', 'brand_name'
+        ]) . "\n"
+        . '101,"UK Only Mouse","UK_101","9999","15.00","GBP","Logitech"' . "\n"
+        . '102,"DE Wildlife Camera","DE_102","25962","89.99","EUR","BlazeVideo"' . "\n";
+
+        $gzContent = gzencode($csvContent);
+
+        Http::fake([
+            'https://productdata.awin.com/datafeed/download/test_currency*' => Http::response($gzContent, 200, [
+                'Content-Type' => 'application/gzip',
+                'Content-Disposition' => 'attachment; filename="feed.csv.gz"',
+            ]),
+        ]);
+
+        $service = new AwinDatafeedService();
+        $result = $service->streamFeedRecords('https://productdata.awin.com/datafeed/download/test_currency', null, $marketDe, 10);
+
+        $this->assertTrue($result['success']);
+        $this->assertCount(1, $result['records']);
+        $this->assertEquals('DE Wildlife Camera', $result['records'][0]['product_name']);
+        $this->assertEquals(1, $result['rows_skipped']);
+        $this->assertEquals(1, $result['skip_reasons']['MARKET_CURRENCY_MISMATCH'] ?? 0);
+    }
+
+    public function test_csv_with_quotes_and_embedded_commas_parses_correctly(): void
+    {
+        $this->artisan('system:init-foundation');
+        $marketGb = Market::where('code', 'gb')->first();
+
+        $csvContent = "aw_product_id,product_name,description,search_price,currency,brand_name\n"
+            . "201,\"Logitech Mouse, Wireless, Ergonomic\",\"Features USB-C, 2.4GHz, and Bluetooth\",29.99,GBP,Logitech\n";
+
+        $service = new AwinDatafeedService();
+        $gzContent = gzencode($csvContent);
+
+        Http::fake([
+            'https://productdata.awin.com/datafeed/download/test_commas*' => Http::response($gzContent, 200, [
+                'Content-Type' => 'application/gzip',
+            ]),
+        ]);
+
+        $result = $service->streamFeedRecords('https://productdata.awin.com/datafeed/download/test_commas', null, $marketGb, 10);
+
+        $this->assertTrue($result['success']);
+        $this->assertCount(1, $result['records']);
+        $this->assertEquals('Logitech Mouse, Wireless, Ergonomic', $result['records'][0]['product_name']);
+        $this->assertEquals('Features USB-C, 2.4GHz, and Bluetooth', $result['records'][0]['description']);
+    }
+
+    public function test_multiple_retailers_with_same_ean_attach_to_single_canonical_product(): void
+    {
+        $this->artisan('system:init-foundation');
+        $marketGb = Market::where('code', 'gb')->first();
+        $ingestionService = app(ProductIngestionService::class);
+
+        // Retailer 1
+        $rawItem1 = [
+            'aw_product_id' => '1001',
+            'merchant_product_id' => 'SKU_1001',
+            'product_name' => 'Sony WH-1000XM5 Headphones - Black',
+            'brand_name' => 'Sony',
+            'ean' => '5025232924101',
+            'search_price' => '349.00',
+            'currency' => 'GBP',
+            'in_stock' => '1',
+            'merchant_name' => 'Currys UK',
+            'merchant_domain' => 'currys.co.uk',
+            'aw_deep_link' => 'https://www.awin1.com/pclick.php?p=1001',
+        ];
+
+        // Retailer 2 with same EAN but different price and merchant
+        $rawItem2 = [
+            'aw_product_id' => '2002',
+            'merchant_product_id' => 'SKU_2002',
+            'product_name' => 'Sony Noise Canceling Headphones WH1000XM5',
+            'brand_name' => 'Sony',
+            'ean' => '5025232924101',
+            'search_price' => '329.00',
+            'currency' => 'GBP',
+            'in_stock' => '1',
+            'merchant_name' => 'Argos UK',
+            'merchant_domain' => 'argos.co.uk',
+            'aw_deep_link' => 'https://www.awin1.com/pclick.php?p=2002',
+        ];
+
+        $connector = new AwinProvider();
+        $dto1 = $connector->normalizeAwinItem($rawItem1, $marketGb);
+        $dto2 = $connector->normalizeAwinItem($rawItem2, $marketGb);
+
+        $res1 = $ingestionService->ingest($dto1, $marketGb);
+        $this->assertEquals('created_product', $res1['action']);
+
+        $res2 = $ingestionService->ingest($dto2, $marketGb);
+        $this->assertEquals('matched_existing', $res2['action']);
+
+        // Assert 1 Product, 2 Offers, 2 Retailers
+        $product = Product::whereHas('identifiers', fn($q) => $q->where('value', '5025232924101'))->first();
+        $this->assertNotNull($product);
+        $this->assertEquals(2, $product->offers()->count());
+        $this->assertEquals(2, Retailer::whereIn('name', ['Currys UK', 'Argos UK'])->count());
+    }
 }
