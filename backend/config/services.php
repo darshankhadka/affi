@@ -35,4 +35,18 @@ return [
         ],
     ],
 
+    'amazon' => [
+        'paapi_key' => env('AMAZON_PAAPI_KEY', env('AWS_ACCESS_KEY_ID')),
+        'paapi_secret' => env('AMAZON_PAAPI_SECRET', env('AWS_SECRET_ACCESS_KEY')),
+        'tags' => [
+            'us' => env('AMAZON_TAG_US', 'arikartech-20'),
+            'uk' => env('AMAZON_TAG_UK', 'arikartechuk-21'),
+            'de' => env('AMAZON_TAG_DE', 'arikartechde-21'),
+            'fr' => env('AMAZON_TAG_FR', 'arikartechfr-21'),
+            'es' => env('AMAZON_TAG_ES', 'arikarteches-21'),
+            'it' => env('AMAZON_TAG_IT', 'arikartechit-21'),
+            'au' => env('AMAZON_TAG_AU', 'arikartechau-22'),
+        ],
+    ],
+
 ];
