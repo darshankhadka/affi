@@ -86,6 +86,8 @@ class AwinProvider implements AffiliateProviderInterface
 
             $latency = (int) round((microtime(true) - $startTime) * 1000);
 
+            $status = $response->status();
+
             if ($response->successful()) {
                 $programmes = $response->json();
                 $count = is_array($programmes) ? count($programmes) : 0;
@@ -98,19 +100,55 @@ class AwinProvider implements AffiliateProviderInterface
                 ];
             }
 
-            if ($response->status() === 401 || $response->status() === 403) {
+            if ($status === 401) {
                 return [
                     'connected' => false,
                     'status' => 'invalid_credentials',
-                    'message' => 'Awin API returned unauthorized (401/403). Please verify API Token & Publisher ID permissions.',
+                    'message' => 'Awin API authentication failed (401 Unauthorized). Please verify API Token.',
+                    'latency_ms' => $latency,
+                ];
+            }
+
+            if ($status === 403) {
+                return [
+                    'connected' => false,
+                    'status' => 'endpoint_not_permitted',
+                    'message' => 'Awin API returned 403 Forbidden: Endpoint or scope not permitted for this account/token policy.',
+                    'latency_ms' => $latency,
+                ];
+            }
+
+            if ($status === 404) {
+                return [
+                    'connected' => false,
+                    'status' => 'endpoint_not_found',
+                    'message' => 'Awin API returned 404: Endpoint not found.',
+                    'latency_ms' => $latency,
+                ];
+            }
+
+            if ($status === 429) {
+                return [
+                    'connected' => false,
+                    'status' => 'rate_limited',
+                    'message' => 'Awin API returned 429: Rate limited.',
+                    'latency_ms' => $latency,
+                ];
+            }
+
+            if ($status >= 500) {
+                return [
+                    'connected' => false,
+                    'status' => 'provider_server_error',
+                    'message' => "Awin API Server Error (HTTP {$status}): " . substr($response->body(), 0, 200),
                     'latency_ms' => $latency,
                 ];
             }
 
             return [
                 'connected' => false,
-                'status' => 'error',
-                'message' => "Awin API HTTP Error {$response->status()}: " . substr($response->body(), 0, 300),
+                'status' => 'provider_request_error',
+                'message' => "Awin API Request Error (HTTP {$status}): " . substr($response->body(), 0, 200),
                 'latency_ms' => $latency,
             ];
         } catch (Throwable $e) {

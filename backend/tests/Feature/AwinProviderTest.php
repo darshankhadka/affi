@@ -235,5 +235,132 @@ class AwinProviderTest extends TestCase
         $this->assertEquals('https://unknown.co.uk/products/laptop', $url);
         $this->assertStringNotContainsString('awinmid=12345', $url);
     }
+
+    public function test_connection_classifies_401_as_invalid_credentials(): void
+    {
+        Http::fake([
+            'https://api.awin.com/publishers/*/programmes*' => Http::response('Unauthorized', 401),
+        ]);
+
+        $provider = AffiliateProvider::create([
+            'code' => 'awin_401',
+            'name' => 'Awin Publisher Network',
+            'is_active' => true,
+            'config' => ['api_token' => 'BAD_TOKEN', 'publisher_id' => '12345'],
+            'status' => 'disconnected',
+        ]);
+
+        $connector = new AwinProvider();
+        $result = $connector->testConnection($provider);
+
+        $this->assertFalse($result['connected']);
+        $this->assertEquals('invalid_credentials', $result['status']);
+    }
+
+    public function test_connection_classifies_403_as_endpoint_not_permitted(): void
+    {
+        Http::fake([
+            'https://api.awin.com/publishers/*/programmes*' => Http::response('Forbidden policy', 403),
+        ]);
+
+        $provider = AffiliateProvider::create([
+            'code' => 'awin_403',
+            'name' => 'Awin Publisher Network',
+            'is_active' => true,
+            'config' => ['api_token' => 'TOKEN', 'publisher_id' => '12345'],
+            'status' => 'disconnected',
+        ]);
+
+        $connector = new AwinProvider();
+        $result = $connector->testConnection($provider);
+
+        $this->assertFalse($result['connected']);
+        $this->assertEquals('endpoint_not_permitted', $result['status']);
+    }
+
+    public function test_connection_classifies_404_as_endpoint_not_found(): void
+    {
+        Http::fake([
+            'https://api.awin.com/publishers/*/programmes*' => Http::response('Not Found', 404),
+        ]);
+
+        $provider = AffiliateProvider::create([
+            'code' => 'awin_404',
+            'name' => 'Awin Publisher Network',
+            'is_active' => true,
+            'config' => ['api_token' => 'TOKEN', 'publisher_id' => '12345'],
+            'status' => 'disconnected',
+        ]);
+
+        $connector = new AwinProvider();
+        $result = $connector->testConnection($provider);
+
+        $this->assertFalse($result['connected']);
+        $this->assertEquals('endpoint_not_found', $result['status']);
+    }
+
+    public function test_connection_classifies_429_as_rate_limited(): void
+    {
+        Http::fake([
+            'https://api.awin.com/publishers/*/programmes*' => Http::response('Too Many Requests', 429),
+        ]);
+
+        $provider = AffiliateProvider::create([
+            'code' => 'awin_429',
+            'name' => 'Awin Publisher Network',
+            'is_active' => true,
+            'config' => ['api_token' => 'TOKEN', 'publisher_id' => '12345'],
+            'status' => 'disconnected',
+        ]);
+
+        $connector = new AwinProvider();
+        $result = $connector->testConnection($provider);
+
+        $this->assertFalse($result['connected']);
+        $this->assertEquals('rate_limited', $result['status']);
+    }
+
+    public function test_connection_classifies_500_as_provider_server_error(): void
+    {
+        Http::fake([
+            'https://api.awin.com/publishers/*/programmes*' => Http::response('Internal Server Error', 500),
+        ]);
+
+        $provider = AffiliateProvider::create([
+            'code' => 'awin_500',
+            'name' => 'Awin Publisher Network',
+            'is_active' => true,
+            'config' => ['api_token' => 'TOKEN', 'publisher_id' => '12345'],
+            'status' => 'disconnected',
+        ]);
+
+        $connector = new AwinProvider();
+        $result = $connector->testConnection($provider);
+
+        $this->assertFalse($result['connected']);
+        $this->assertEquals('provider_server_error', $result['status']);
+    }
+
+    public function test_search_products_returns_empty_array_on_valid_empty_response(): void
+    {
+        $this->artisan('system:init-foundation');
+        $market = Market::where('code', 'gb')->first();
+
+        Http::fake([
+            'https://api.awin.com/publishers/*/productsearch*' => Http::response(['products' => []], 200),
+        ]);
+
+        $provider = AffiliateProvider::where('code', 'awin')->first();
+        $provider->update([
+            'is_active' => true,
+            'config' => ['api_token' => 'TEST_TOKEN', 'publisher_id' => '12345'],
+        ]);
+
+        $connector = new AwinProvider();
+        $results = $connector->searchProducts('nonexistent_product', $market);
+
+        $this->assertIsArray($results);
+        $this->assertEmpty($results);
+    }
 }
 

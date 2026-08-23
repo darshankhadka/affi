@@ -43,19 +43,21 @@ class TestAwinSearchCommand extends Command
         $apiToken = $config['api_token'] ?? config('services.awin.api_token');
         $publisherId = $config['publisher_id'] ?? config('services.awin.publisher_id');
 
-        $this->line("Target Market: <comment>{$market->name} ({$market->code})</comment>");
+        $currencyCode = $market->defaultCurrency?->code ?? $market->currency?->code ?? 'EUR';
+
+        $this->line("Market: <comment>{$market->name} ({$market->code})</comment>");
+        $this->line("Currency: <comment>{$currencyCode}</comment>");
         $this->line("Keywords: <comment>{$keywords}</comment>");
-        $this->line("Requested Limit: <comment>{$limit}</comment>");
+        $this->line("Limit: <comment>{$limit}</comment>");
 
         $endpoint = "https://api.awin.com/publishers/{$publisherId}/productsearch";
         $params = [
             'query' => $keywords,
             'limit' => $limit,
-            'language' => $market->code === 'gb' || $market->code === 'uk' ? 'en' : $market->code,
+            'language' => in_array($market->code, ['gb', 'uk', 'ie']) ? 'en' : $market->code,
         ];
 
-        $this->line("Request Endpoint: <comment>GET {$endpoint}</comment>");
-        $this->line("Parameters: <comment>" . json_encode($params) . "</comment>");
+        $this->line("Endpoint: <comment>GET {$endpoint}</comment>");
 
         $startTime = microtime(true);
         try {
@@ -68,40 +70,66 @@ class TestAwinSearchCommand extends Command
             $status = $response->status();
             $contentType = $response->header('Content-Type');
 
-            $this->line("\nHTTP Status: <comment>{$status}</comment>");
-            $this->line("Content-Type: <comment>{$contentType}</comment>");
+            $this->line("HTTP Status: <comment>{$status}</comment>");
+            $this->line("Response type: <comment>{$contentType}</comment>");
             $this->line("Latency: <comment>{$latency} ms</comment>");
 
-            if (!$response->successful()) {
-                $bodyPreview = substr($response->body(), 0, 500);
-                $this->error("\nHTTP Error ({$status}): {$bodyPreview}");
+            if ($response->successful()) {
+                $raw = $response->json();
+                $items = $raw['products'] ?? $raw['data'] ?? (is_array($raw) && isset($raw[0]) ? $raw : []);
+                $this->info("Products returned: " . count($items));
+
+                $normalizedCount = 0;
+                foreach ($items as $idx => $item) {
+                    $dto = $connector->normalizeAwinItem($item, $market);
+                    if ($dto) {
+                        $normalizedCount++;
+                        if ($normalizedCount <= 3) {
+                            $this->line("\n--- Product #" . ($idx + 1) . " ---");
+                            $this->line("Name: <info>{$dto->name}</info>");
+                            $this->line("Brand: <comment>{$dto->brandName}</comment>");
+                            $this->line("Price: <info>" . ($dto->offer->price ?? 'N/A') . " " . ($dto->offer->currencyCode ?? '') . "</info>");
+                            $this->line("Retailer: <comment>" . ($dto->offer->retailerName ?? 'N/A') . " (" . ($dto->offer->retailerDomain ?? '') . ")</comment>");
+                            $this->line("Affiliate URL: <comment>" . substr($dto->offer->affiliateUrl ?? '', 0, 80) . "...</comment>");
+                        }
+                    }
+                }
+
+                $this->info("Products normalized: {$normalizedCount}");
+                $this->info("\nRESULT: CONNECTED / SUCCESS");
+                return Command::SUCCESS;
+            }
+
+            if ($status === 401) {
+                $this->error("\nRESULT: INVALID CREDENTIALS");
+                $this->line("<comment>Authentication failed (401 Unauthorized).</comment>");
                 return Command::FAILURE;
             }
 
-            $raw = $response->json();
-            $this->line("Response JSON Keys: <comment>" . implode(', ', array_keys(is_array($raw) ? $raw : [])) . "</comment>");
-
-            $items = $raw['products'] ?? $raw['data'] ?? (is_array($raw) && isset($raw[0]) ? $raw : []);
-            $this->info("Raw Products Found: " . count($items));
-
-            $normalizedCount = 0;
-            foreach ($items as $idx => $item) {
-                $dto = $connector->normalizeAwinItem($item, $market);
-                if ($dto) {
-                    $normalizedCount++;
-                    if ($normalizedCount <= 3) {
-                        $this->line("\n--- Product #" . ($idx + 1) . " ---");
-                        $this->line("Name: <info>{$dto->name}</info>");
-                        $this->line("Brand: <comment>{$dto->brandName}</comment>");
-                        $this->line("Price: <info>" . ($dto->offers[0]->price ?? 'N/A') . " " . ($dto->offers[0]->currencyCode ?? '') . "</info>");
-                        $this->line("Retailer: <comment>" . ($dto->offers[0]->retailerName ?? 'N/A') . " (" . ($dto->offers[0]->retailerDomain ?? '') . ")</comment>");
-                        $this->line("Affiliate URL: <comment>" . substr($dto->offers[0]->affiliateUrl ?? '', 0, 80) . "...</comment>");
-                    }
-                }
+            if ($status === 403) {
+                $this->error("\nRESULT: FORBIDDEN / ENDPOINT NOT PERMITTED");
+                $this->line("<comment>The credentials are configured and authenticated, but this specific product search API endpoint is not permitted under the current Awin publisher account policy/scopes.</comment>");
+                $this->line("<comment>API Response: " . trim($response->body()) . "</comment>");
+                return Command::FAILURE;
             }
 
-            $this->info("\nSuccessfully normalized {$normalizedCount} / " . count($items) . " products.");
-            return Command::SUCCESS;
+            if ($status === 404) {
+                $this->error("\nRESULT: ENDPOINT NOT FOUND (HTTP 404)");
+                return Command::FAILURE;
+            }
+
+            if ($status === 429) {
+                $this->error("\nRESULT: RATE LIMITED (HTTP 429)");
+                return Command::FAILURE;
+            }
+
+            if ($status >= 500) {
+                $this->error("\nRESULT: PROVIDER SERVER ERROR (HTTP {$status})");
+                return Command::FAILURE;
+            }
+
+            $this->error("\nRESULT: REQUEST ERROR (HTTP {$status}) - " . substr($response->body(), 0, 200));
+            return Command::FAILURE;
         } catch (\Throwable $e) {
             $latency = (int) round((microtime(true) - $startTime) * 1000);
             $this->line("\nLatency: <comment>{$latency} ms</comment>");

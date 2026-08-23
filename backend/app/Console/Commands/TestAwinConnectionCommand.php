@@ -62,12 +62,35 @@ class TestAwinConnectionCommand extends Command
                 return Command::SUCCESS;
             }
 
-            if ($status === 401 || $status === 403) {
+            if ($status === 401) {
                 $this->error("\nRESULT: INVALID CREDENTIALS");
+                $this->line("<comment>Authentication failed (401 Unauthorized). Please check API token.</comment>");
                 return Command::FAILURE;
             }
 
-            $this->error("\nRESULT: ERROR (HTTP {$status}) - " . substr($response->body(), 0, 200));
+            if ($status === 403) {
+                $this->error("\nRESULT: FORBIDDEN / ENDPOINT NOT PERMITTED");
+                $this->line("<comment>Credentials are configured, but the requested API endpoint or publisher programmes access is not permitted for this account/token policy.</comment>");
+                $this->line("<comment>Response: " . substr($response->body(), 0, 200) . "</comment>");
+                return Command::FAILURE;
+            }
+
+            if ($status === 404) {
+                $this->error("\nRESULT: ENDPOINT NOT FOUND");
+                return Command::FAILURE;
+            }
+
+            if ($status === 429) {
+                $this->error("\nRESULT: RATE LIMITED");
+                return Command::FAILURE;
+            }
+
+            if ($status >= 500) {
+                $this->error("\nRESULT: PROVIDER SERVER ERROR (HTTP {$status})");
+                return Command::FAILURE;
+            }
+
+            $this->error("\nRESULT: REQUEST ERROR (HTTP {$status}) - " . substr($response->body(), 0, 200));
             return Command::FAILURE;
         } catch (\Throwable $e) {
             $latency = (int) round((microtime(true) - $startTime) * 1000);

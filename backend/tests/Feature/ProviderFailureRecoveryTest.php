@@ -50,7 +50,7 @@ class ProviderFailureRecoveryTest extends TestCase
         $cjRes = $cjConnector->testConnection($cj);
 
         $this->assertFalse($awinRes['connected']);
-        $this->assertEquals('error', $awinRes['status']);
+        $this->assertEquals('provider_server_error', $awinRes['status']);
 
         $this->assertFalse($cjRes['connected']);
         $this->assertEquals('error', $cjRes['status']);
