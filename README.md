@@ -60,6 +60,10 @@ npm run build:all
 
 ## Documentation
 Refer to the `docs/` directory for detailed documentation:
+- [Final Launch Audit](docs/FINAL_LAUNCH_AUDIT.md)
+- [Final Production Deployment](docs/FINAL_PRODUCTION_DEPLOYMENT.md)
+- [Final Launch Checklist](docs/FINAL_LAUNCH_CHECKLIST.md)
+- [Final Launch Report](docs/FINAL_LAUNCH_REPORT.md)
 - [System Architecture](docs/ARCHITECTURE.md)
 - [Database Schema & ERD](docs/DATABASE.md)
 - [REST API Specifications](docs/API.md)
@@ -70,5 +74,4 @@ Refer to the `docs/` directory for detailed documentation:
 - [Shared Hosting Guide](docs/SHARED_HOSTING.md)
 - [Security Architecture](docs/SECURITY.md)
 - [Testing Guide](docs/TESTING.md)
-- [Production Deployment](docs/DEPLOYMENT.md)
 - [Phase Status Report](docs/PHASE_STATUS.md)
