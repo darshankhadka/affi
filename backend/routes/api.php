@@ -106,6 +106,10 @@ Route::middleware(['auth:sanctum', 'role:Super Admin|Admin|Editor|Analyst'])->pr
     Route::post('/seo/redirects', [SeoAdminController::class, 'storeRedirect'])->middleware('role:Super Admin|Admin|Editor');
     Route::delete('/seo/redirects/{id}', [SeoAdminController::class, 'destroyRedirect'])->middleware('role:Super Admin|Admin');
 
+    // Analytics & Intelligence
+    Route::get('/analytics/search-intelligence', [\App\Http\Controllers\Api\V1\Admin\AnalyticsAdminController::class, 'searchIntelligence']);
+    Route::get('/analytics/conversion', [\App\Http\Controllers\Api\V1\Admin\AnalyticsAdminController::class, 'conversionOverview']);
+
     // User & RBAC Management (Super Admin only)
     Route::get('/users', [UserAdminController::class, 'index'])->middleware('role:Super Admin');
     Route::post('/users', [UserAdminController::class, 'store'])->middleware('role:Super Admin');

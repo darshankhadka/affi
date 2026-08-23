@@ -4,9 +4,17 @@ namespace App\Services\SEO;
 
 use App\Models\Market;
 use App\Models\Product;
+use App\Services\Quality\DataQualityService;
 
 class SeoEligibilityService
 {
+    protected DataQualityService $qualityService;
+
+    public function __construct(?DataQualityService $qualityService = null)
+    {
+        $this->qualityService = $qualityService ?? app(DataQualityService::class);
+    }
+
     /**
      * Determine if a canonical product is eligible for search engine indexation in a market
      */
@@ -17,6 +25,11 @@ class SeoEligibilityService
         }
 
         if (empty($product->slug) || empty($product->name)) {
+            return false;
+        }
+
+        // Must pass baseline quality threshold (>= 40 points)
+        if ($this->qualityService->calculateQualityScore($product) < 40) {
             return false;
         }
 

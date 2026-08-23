@@ -30,6 +30,7 @@ class DataQualityTest extends TestCase
             'category_id' => $category->id,
             'name' => 'Apple Test Product',
             'slug' => 'apple-test-product',
+            'model_number' => 'A2992',
             'status' => 'published',
         ]);
         $this->assertFalse($seoService->isIndexable($product, $market));

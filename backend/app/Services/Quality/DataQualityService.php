@@ -12,16 +12,6 @@ class DataQualityService
 {
     /**
      * Run full data quality assessment and return metric anomalies
-     *
-     * @return array{
-     *   total_issues: int,
-     *   conflicting_identifiers_count: int,
-     *   products_missing_image_count: int,
-     *   products_missing_specs_count: int,
-     *   stale_offers_count: int,
-     *   suspicious_price_drops_count: int,
-     *   issues: array<int, array{type: string, severity: string, message: string, entity_id: int}>
-     * }
      */
     public function audit(): array
     {
@@ -86,6 +76,72 @@ class DataQualityService
             'suspicious_price_drops_count' => 0,
             'issues' => array_slice($issues, 0, 50),
         ];
+    }
+
+    /**
+     * Calculate deterministic product quality score (0 to 100)
+     */
+    public function calculateQualityScore(Product $product): int
+    {
+        $score = 0;
+
+        // 1. Name & Slug Completeness (10 pts)
+        if (!empty($product->name) && strlen(trim($product->name)) >= 5 && !empty($product->slug)) {
+            $score += 10;
+        }
+
+        // 2. Brand Assigned (10 pts)
+        if ($product->brand_id && $product->brand) {
+            $score += 10;
+        }
+
+        // 3. Model Number Assigned (10 pts)
+        if (!empty($product->model_number)) {
+            $score += 10;
+        }
+
+        // 4. Canonical Identifiers Present (20 pts)
+        $identifiersCount = $product->identifiers()->count();
+        if ($identifiersCount >= 1) {
+            $score += 20;
+        }
+
+        // 5. Images Available (15 pts)
+        if ($product->primary_image_id || $product->images()->exists()) {
+            $score += 15;
+        }
+
+        // 6. Specifications Detailed (15 pts)
+        $specsCount = $product->specifications()->count();
+        if ($specsCount >= 2) {
+            $score += 15;
+        } elseif ($specsCount === 1) {
+            $score += 8;
+        }
+
+        // 7. Active Retailer Offers Present (15 pts)
+        $activeOffersCount = $product->offers()->where('is_active', true)->count();
+        if ($activeOffersCount >= 1) {
+            $score += 15;
+        }
+
+        // 8. Description Content (5 pts)
+        if (!empty($product->description) && strlen(trim($product->description)) >= 20) {
+            $score += 5;
+        }
+
+        return min(100, $score);
+    }
+
+    /**
+     * Map quality score to deterministic rating grade
+     */
+    public function getQualityGrade(int $score): string
+    {
+        if ($score >= 90) return 'Excellent';
+        if ($score >= 75) return 'Good';
+        if ($score >= 60) return 'Needs Improvement';
+        return 'Not Publishable';
     }
 
     /**
