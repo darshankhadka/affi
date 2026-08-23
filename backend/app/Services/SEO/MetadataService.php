@@ -39,6 +39,7 @@ class MetadataService
         foreach ($activeMarkets as $m) {
             $hreflang[$m->hreflang] = "{$siteUrl}/{$m->code}/products/{$product->slug}";
         }
+        $hreflang['x-default'] = "{$siteUrl}/gb/products/{$product->slug}";
 
         $robots = $this->eligibilityService->getRobotsDirective($product, $market);
 

@@ -34,9 +34,9 @@ class CatalogHealthCommand extends Command
 
         // Calculate indexable products across markets
         $indexableCount = 0;
-        $usMarket = Market::where('code', 'us')->first();
+        $primaryMarket = Market::where('code', 'gb')->first() ?? Market::where('is_active', true)->first();
         foreach (Product::where('status', 'published')->get() as $p) {
-            if ($seoService->isIndexable($p, $usMarket)) {
+            if ($seoService->isIndexable($p, $primaryMarket)) {
                 $indexableCount++;
             }
         }
@@ -51,7 +51,7 @@ class CatalogHealthCommand extends Command
             ['Active Markets', "{$totalMarkets} Active", "Target regional markets initialized"],
             ['Canonical Products', "{$totalProducts} Total", "{$publishedProducts} published, " . ($totalProducts - $publishedProducts) . " draft/review"],
             ['Store Offers', "{$activeOffers} Active", "{$totalOffers} total offers in database"],
-            ['Indexable Products (US)', "{$indexableCount} Indexable", "Products meeting strict SEO eligibility criteria"],
+            ['Indexable Products (Europe/UK)', "{$indexableCount} Indexable", "Products meeting strict SEO eligibility criteria"],
             ['Stale Offers (>48h)', "{$staleOffers} Stale", $staleOffers === 0 ? 'All active offers are fresh' : 'Offers scheduled for refresh'],
             ['Conflicting Identifiers', $auditResults['conflicting_identifiers_count'] === 0 ? '0' : (string)$auditResults['conflicting_identifiers_count'], 'Conflicting EAN/UPC/ASIN assignments'],
             ['Catalog Quality Issues', (string)$auditResults['total_issues'], 'Quality audit anomalies identified'],

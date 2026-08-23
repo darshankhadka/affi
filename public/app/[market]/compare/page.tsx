@@ -2,22 +2,14 @@ import React, { Suspense } from 'react';
 import { Metadata } from 'next';
 import { CompareClient } from './CompareClient';
 
+import { CANONICAL_MARKETS } from '@/lib/catalog';
+
 interface ComparePageProps {
   params: Promise<{ market: string }>;
 }
 
 export async function generateStaticParams() {
-  return [
-    { market: 'us' },
-    { market: 'uk' },
-    { market: 'de' },
-    { market: 'fr' },
-    { market: 'es' },
-    { market: 'it' },
-    { market: 'nl' },
-    { market: 'au' },
-    { market: 'nz' },
-  ];
+  return CANONICAL_MARKETS.map((m) => ({ market: m.code }));
 }
 
 export const metadata: Metadata = {

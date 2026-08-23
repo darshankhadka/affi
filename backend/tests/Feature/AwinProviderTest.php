@@ -20,6 +20,8 @@ class AwinProviderTest extends TestCase
 
     public function test_connection_reports_not_configured_when_empty(): void
     {
+        config(['services.awin.api_token' => null, 'services.awin.publisher_id' => null]);
+
         $provider = AffiliateProvider::create([
             'code' => 'awin',
             'name' => 'Awin Publisher Network',

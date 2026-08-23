@@ -28,15 +28,21 @@ export interface BrandDef {
 }
 
 export const CANONICAL_MARKETS: MarketDef[] = [
-  { code: 'us', name: 'United States', currency: 'USD', symbol: '$', locale: 'en-US' },
-  { code: 'uk', name: 'United Kingdom', currency: 'GBP', symbol: '£', locale: 'en-GB' },
   { code: 'de', name: 'Germany', currency: 'EUR', symbol: '€', locale: 'de-DE' },
   { code: 'fr', name: 'France', currency: 'EUR', symbol: '€', locale: 'fr-FR' },
+  { code: 'nl', name: 'Netherlands', currency: 'EUR', symbol: '€', locale: 'nl-NL' },
   { code: 'es', name: 'Spain', currency: 'EUR', symbol: '€', locale: 'es-ES' },
   { code: 'it', name: 'Italy', currency: 'EUR', symbol: '€', locale: 'it-IT' },
-  { code: 'nl', name: 'Netherlands', currency: 'EUR', symbol: '€', locale: 'nl-NL' },
-  { code: 'au', name: 'Australia', currency: 'AUD', symbol: 'A$', locale: 'en-AU' },
-  { code: 'nz', name: 'New Zealand', currency: 'NZD', symbol: 'NZ$', locale: 'en-NZ' },
+  { code: 'be', name: 'Belgium', currency: 'EUR', symbol: '€', locale: 'nl-BE' },
+  { code: 'at', name: 'Austria', currency: 'EUR', symbol: '€', locale: 'de-AT' },
+  { code: 'ie', name: 'Ireland', currency: 'EUR', symbol: '€', locale: 'en-IE' },
+  { code: 'pt', name: 'Portugal', currency: 'EUR', symbol: '€', locale: 'pt-PT' },
+  { code: 'fi', name: 'Finland', currency: 'EUR', symbol: '€', locale: 'fi-FI' },
+  { code: 'se', name: 'Sweden', currency: 'EUR', symbol: '€', locale: 'sv-SE' },
+  { code: 'dk', name: 'Denmark', currency: 'DKK', symbol: 'kr.', locale: 'da-DK' },
+  { code: 'pl', name: 'Poland', currency: 'PLN', symbol: 'zł', locale: 'pl-PL' },
+  { code: 'cz', name: 'Czech Republic', currency: 'CZK', symbol: 'Kč', locale: 'cs-CZ' },
+  { code: 'gb', name: 'United Kingdom', currency: 'GBP', symbol: '£', locale: 'en-GB' },
 ];
 
 export const CANONICAL_CATEGORIES: CategoryDef[] = [

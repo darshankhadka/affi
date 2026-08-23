@@ -56,21 +56,21 @@ class ProductionReadinessCommand extends Command
             $checks[] = ['Cache Store Operational', 'FAIL', "Cache store error: {$e->getMessage()}"];
         }
 
-        // 4. Target Markets (9 Markets)
-        $expectedMarkets = ['us', 'uk', 'de', 'fr', 'es', 'it', 'nl', 'au', 'nz'];
-        $marketCount = Market::whereIn('code', $expectedMarkets)->count();
+        // 4. Target Markets (15 Europe & UK Markets)
+        $expectedMarkets = ['de', 'fr', 'nl', 'es', 'it', 'be', 'at', 'ie', 'pt', 'fi', 'se', 'dk', 'pl', 'cz', 'gb'];
+        $marketCount = Market::whereIn('code', $expectedMarkets)->where('is_active', true)->count();
         $checks[] = [
             'Target Markets Configured',
-            $marketCount >= 9 ? 'PASS' : 'WARNING',
-            "{$marketCount} / 9 target country markets active in database"
+            $marketCount >= 15 ? 'PASS' : 'WARNING',
+            "{$marketCount} / 15 Europe & UK target country markets active in database"
         ];
 
         // 5. Currencies
-        $currenciesCount = Currency::count();
+        $currenciesCount = Currency::where('is_active', true)->count();
         $checks[] = [
             'Currencies & Exchange Rates',
             $currenciesCount >= 5 ? 'PASS' : 'WARNING',
-            "{$currenciesCount} ISO-4217 currencies active (USD, GBP, EUR, AUD, NZD)"
+            "{$currenciesCount} active ISO-4217 currencies (EUR, GBP, DKK, PLN, CZK, USD)"
         ];
 
         // 6. Technology Categories Taxonomy
