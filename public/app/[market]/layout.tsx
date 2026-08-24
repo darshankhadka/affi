@@ -8,6 +8,8 @@ interface MarketLayoutProps {
   params: Promise<{ market: string }>;
 }
 
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
   return CANONICAL_MARKETS.map((m) => ({ market: m.code }));
 }
