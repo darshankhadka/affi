@@ -14,6 +14,11 @@ export interface MarketDef {
   locale: string;
 }
 
+export interface MarketRegionGroup {
+  name: string;
+  markets: MarketDef[];
+}
+
 export interface CategoryDef {
   name: string;
   slug: string;
@@ -27,12 +32,21 @@ export interface BrandDef {
   description?: string;
 }
 
+export const MARKET_FLAGS: Record<string, string> = {
+  us: '🇺🇸', ca: '🇨🇦', gb: '🇬🇧', de: '🇩🇪', fr: '🇫🇷', nl: '🇳🇱',
+  es: '🇪🇸', it: '🇮🇹', be: '🇧🇪', at: '🇦🇹', ie: '🇮🇪', pt: '🇵🇹',
+  fi: '🇫🇮', se: '🇸🇪', dk: '🇩🇰', pl: '🇵🇱', cz: '🇨🇿', bg: '🇧🇬',
+  hr: '🇭🇷', cy: '🇨🇾', ee: '🇪🇪', gr: '🇬🇷', hu: '🇭🇺', lv: '🇱🇻',
+  lt: '🇱🇹', lu: '🇱🇺', mt: '🇲🇹', ro: '🇷🇴', sk: '🇸🇰', si: '🇸🇮',
+  no: '🇳🇴', ch: '🇨🇭', is: '🇮🇸', au: '🇦🇺', nz: '🇳🇿',
+};
+
 export const CANONICAL_MARKETS: MarketDef[] = [
-  // North America
+  // North America (2)
   { code: 'us', name: 'United States', currency: 'USD', symbol: '$', locale: 'en-US' },
   { code: 'ca', name: 'Canada', currency: 'CAD', symbol: 'CA$', locale: 'en-CA' },
 
-  // United Kingdom
+  // United Kingdom (1)
   { code: 'gb', name: 'United Kingdom', currency: 'GBP', symbol: '£', locale: 'en-GB' },
 
   // European Union (24)
@@ -72,6 +86,35 @@ export const CANONICAL_MARKETS: MarketDef[] = [
   // Oceania (2)
   { code: 'au', name: 'Australia', currency: 'AUD', symbol: 'A$', locale: 'en-AU' },
   { code: 'nz', name: 'New Zealand', currency: 'NZD', symbol: 'NZ$', locale: 'en-NZ' },
+];
+
+export const CANONICAL_MARKET_GROUPS: MarketRegionGroup[] = [
+  {
+    name: 'North America',
+    markets: CANONICAL_MARKETS.filter((m) => ['us', 'ca'].includes(m.code)),
+  },
+  {
+    name: 'United Kingdom',
+    markets: CANONICAL_MARKETS.filter((m) => m.code === 'gb'),
+  },
+  {
+    name: 'European Union',
+    markets: CANONICAL_MARKETS.filter((m) =>
+      [
+        'de', 'fr', 'nl', 'es', 'it', 'be', 'at', 'ie', 'pt', 'fi', 'se', 'dk',
+        'pl', 'cz', 'bg', 'hr', 'cy', 'ee', 'gr', 'hu', 'lv', 'lt', 'lu', 'mt',
+        'ro', 'sk', 'si',
+      ].includes(m.code)
+    ),
+  },
+  {
+    name: 'Europe (Non-EU)',
+    markets: CANONICAL_MARKETS.filter((m) => ['no', 'ch', 'is'].includes(m.code)),
+  },
+  {
+    name: 'Oceania',
+    markets: CANONICAL_MARKETS.filter((m) => ['au', 'nz'].includes(m.code)),
+  },
 ];
 
 export const CANONICAL_CATEGORIES: CategoryDef[] = [
@@ -120,7 +163,6 @@ export function getCategoryDef(slug: string): CategoryDef {
   const found = CANONICAL_CATEGORIES.find((c) => c.slug === normalized);
   if (found) return found;
   
-  // Format slug to human-readable fallback
   const name = slug
     .split('-')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))

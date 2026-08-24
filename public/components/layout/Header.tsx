@@ -1,10 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Globe, SlidersHorizontal, X, Check } from 'lucide-react';
-import { CANONICAL_MARKETS, MarketDef } from '@/lib/catalog';
+import { Search, ChevronDown, SlidersHorizontal, Check } from 'lucide-react';
+import {
+  CANONICAL_MARKETS,
+  CANONICAL_MARKET_GROUPS,
+  MARKET_FLAGS,
+  MarketDef,
+  getMarketDef,
+} from '@/lib/catalog';
 import { setUserMarketPreference } from '@/lib/market-router';
 
 interface HeaderProps {
@@ -12,15 +18,6 @@ interface HeaderProps {
   markets?: MarketDef[];
   categories?: { name: string; slug: string }[];
 }
-
-const MARKET_FLAGS: Record<string, string> = {
-  us: '🇺🇸', ca: '🇨🇦', gb: '🇬🇧', de: '🇩🇪', fr: '🇫🇷', nl: '🇳🇱',
-  es: '🇪🇸', it: '🇮🇹', be: '🇧🇪', at: '🇦🇹', ie: '🇮🇪', pt: '🇵🇹',
-  fi: '🇫🇮', se: '🇸🇪', dk: '🇩🇰', pl: '🇵🇱', cz: '🇨🇿', bg: '🇧🇬',
-  hr: '🇭🇷', cy: '🇨🇾', ee: '🇪🇪', gr: '🇬🇷', hu: '🇭🇺', lv: '🇱🇻',
-  lt: '🇱🇹', lu: '🇱🇺', mt: '🇲🇹', ro: '🇷🇴', sk: '🇸🇰', si: '🇸🇮',
-  no: '🇳🇴', ch: '🇨🇭', is: '🇮🇸', au: '🇦🇺', nz: '🇳🇿',
-};
 
 export const Header: React.FC<HeaderProps> = ({
   currentMarket,
@@ -44,10 +41,36 @@ export const Header: React.FC<HeaderProps> = ({
   ],
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [isMarketModalOpen, setIsMarketModalOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [marketSearch, setMarketSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDropdownOpen]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +81,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleSelectMarket = (targetMarketCode: string) => {
     setUserMarketPreference(targetMarketCode);
-    setIsMarketModalOpen(false);
+    setIsDropdownOpen(false);
+    setMarketSearch('');
 
     // If on a market-specific route, replace the market segment
     if (pathname) {
@@ -73,15 +97,19 @@ export const Header: React.FC<HeaderProps> = ({
     router.push(`/${targetMarketCode}`);
   };
 
-  const currentMarketDef = markets.find((m) => m.code === currentMarket) || markets[0];
-  const currentFlag = MARKET_FLAGS[currentMarket] || '🌐';
+  const currentMarketDef = getMarketDef(currentMarket);
+  const currentFlag = MARKET_FLAGS[currentMarketDef.code] || '🌐';
 
-  const filteredMarkets = markets.filter(
-    (m) =>
-      m.name.toLowerCase().includes(marketSearch.toLowerCase()) ||
-      m.code.toLowerCase().includes(marketSearch.toLowerCase()) ||
-      m.currency.toLowerCase().includes(marketSearch.toLowerCase())
-  );
+  // Filter market groups based on search
+  const filteredGroups = CANONICAL_MARKET_GROUPS.map((group) => ({
+    name: group.name,
+    markets: group.markets.filter(
+      (m) =>
+        m.name.toLowerCase().includes(marketSearch.toLowerCase()) ||
+        m.code.toLowerCase().includes(marketSearch.toLowerCase()) ||
+        m.currency.toLowerCase().includes(marketSearch.toLowerCase())
+    ),
+  })).filter((group) => group.markets.length > 0);
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
@@ -122,17 +150,93 @@ export const Header: React.FC<HeaderProps> = ({
             Compare
           </Link>
 
-          {/* Interactive Market Switcher Button */}
-          <button
-            type="button"
-            onClick={() => setIsMarketModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-800 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all cursor-pointer"
-            title="Switch Global Regional Market (35 Markets)"
-          >
-            <span className="text-base leading-none">{currentFlag}</span>
-            <span className="uppercase font-mono font-bold text-slate-900">{currentMarket}</span>
-            <span className="text-slate-400 text-[11px]">({currentMarketDef.currency})</span>
-          </button>
+          {/* Compact Non-Blocking Country / Market Selector Popover */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-800 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all cursor-pointer shadow-2xs"
+              aria-expanded={isDropdownOpen}
+              aria-label={`Select Regional Market (Currently ${currentMarketDef.name})`}
+            >
+              <span className="text-base leading-none">{currentFlag}</span>
+              <span className="font-semibold text-slate-900 hidden sm:inline">{currentMarketDef.name}</span>
+              <span className="font-semibold text-slate-900 sm:hidden uppercase font-mono">{currentMarketDef.code}</span>
+              <span className="text-slate-400 text-[11px] font-mono">· {currentMarketDef.currency} {currentMarketDef.symbol}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${isDropdownOpen ? 'rotate-180 text-emerald-600' : ''}`} />
+            </button>
+
+            {/* Compact Popover Dropdown (No full-screen backdrop) */}
+            {isDropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                {/* Search Header */}
+                <div className="p-3 border-b border-slate-100 bg-slate-50">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search 35 markets (e.g. Germany, USD, kr, AU)..."
+                      value={marketSearch}
+                      onChange={(e) => setMarketSearch(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {/* Grouped Markets List */}
+                <div className="max-h-80 overflow-y-auto p-2 space-y-3 scrollbar-thin">
+                  {filteredGroups.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500">
+                      No markets matching &quot;{marketSearch}&quot;
+                    </div>
+                  ) : (
+                    filteredGroups.map((group) => (
+                      <div key={group.name} className="space-y-1">
+                        <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+                          {group.name}
+                        </div>
+                        <div className="grid grid-cols-1 gap-1">
+                          {group.markets.map((m) => {
+                            const isSelected = m.code === currentMarketDef.code;
+                            const flag = MARKET_FLAGS[m.code] || '🌐';
+                            return (
+                              <button
+                                key={m.code}
+                                type="button"
+                                onClick={() => handleSelectMarket(m.code)}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200'
+                                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 border border-transparent'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-lg leading-none">{flag}</span>
+                                  <div>
+                                    <span className="font-medium">{m.name}</span>
+                                    <span className="text-[10px] text-slate-400 ml-1.5 font-mono">
+                                      {m.currency} ({m.symbol})
+                                    </span>
+                                  </div>
+                                </div>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Popover Footer Note */}
+                <div className="p-2.5 bg-slate-50 border-t border-slate-100 text-center text-[10px] text-slate-400">
+                  Your selected market persists across visits.
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -152,84 +256,6 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
         </div>
       </div>
-
-      {/* 35-Market Selector Modal */}
-      {isMarketModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Globe className="w-5 h-5 text-emerald-600" />
-                  Select Regional Market & Currency
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Choose from 35 supported technology markets across North America, Europe, and Oceania.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsMarketModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Filter Search */}
-            <div className="p-4 border-b border-slate-100 bg-slate-50">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search by country name, code or currency (e.g. Germany, GBP, SEK, US)..."
-                  value={marketSearch}
-                  onChange={(e) => setMarketSearch(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            {/* Market Grid */}
-            <div className="p-4 sm:p-6 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-              {filteredMarkets.map((m) => {
-                const isSelected = m.code === currentMarket;
-                const flag = MARKET_FLAGS[m.code] || '🌐';
-                return (
-                  <button
-                    key={m.code}
-                    type="button"
-                    onClick={() => handleSelectMarket(m.code)}
-                    className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      isSelected
-                        ? 'border-emerald-500 bg-emerald-50/80 shadow-xs'
-                        : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl leading-none">{flag}</span>
-                      <div>
-                        <div className="font-semibold text-xs text-slate-900">{m.name}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          {m.currency} ({m.symbol}) • {m.code.toUpperCase()}
-                        </div>
-                      </div>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 text-emerald-600" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-3 bg-slate-50 border-t border-slate-100 text-center text-[11px] text-slate-500">
-              Your selection is saved securely and persists across future sessions.
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 };

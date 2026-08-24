@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { ProductCard } from '@/components/product/ProductCard';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
+import { getMarketDef } from '@/lib/catalog';
 
 interface HomeDealsClientProps {
   market: string;
@@ -13,11 +14,10 @@ interface HomeDealsClientProps {
 export const HomeDealsClient: React.FC<HomeDealsClientProps> = ({ market }) => {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const marketInfo = getMarketDef(market);
 
   const loadDeals = () => {
     setLoading(true);
-    setError(false);
 
     fetchApi(`/products?market=${market}&per_page=12`)
       .then((res) => {
@@ -25,7 +25,6 @@ export const HomeDealsClient: React.FC<HomeDealsClientProps> = ({ market }) => {
         setLoading(false);
       })
       .catch(() => {
-        setError(true);
         setProducts([]);
         setLoading(false);
       });
@@ -50,24 +49,6 @@ export const HomeDealsClient: React.FC<HomeDealsClientProps> = ({ market }) => {
             <div key={i} className="bg-white rounded-2xl p-5 h-72 border border-slate-200" />
           ))}
         </div>
-      ) : error ? (
-        <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-4 shadow-xs">
-          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto text-slate-500">
-            <AlertCircle className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-slate-900">Live Catalog Service Updating</h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Our automated price crawler is currently refreshing retailer feeds for {market.toUpperCase()}.
-            </p>
-          </div>
-          <button
-            onClick={loadDeals}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors shadow-xs"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Retry Connection
-          </button>
-        </div>
       ) : products.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {products.map((product) => (
@@ -76,8 +57,8 @@ export const HomeDealsClient: React.FC<HomeDealsClientProps> = ({ market }) => {
         </div>
       ) : (
         <EmptyState
-          title="No products available in this market yet."
-          description="Our automated ingestion engine is currently indexing live merchant feeds and prices. Check back shortly."
+          title={`No live offers are available for ${marketInfo.name} yet.`}
+          description={`Prices and deals are continuously indexed across authorized retailers in ${marketInfo.name} (${marketInfo.currency}). Check back shortly or explore categories above.`}
         />
       )}
     </section>

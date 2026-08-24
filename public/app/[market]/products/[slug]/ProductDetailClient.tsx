@@ -58,27 +58,9 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ market
   if (error || !product) {
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-4 shadow-xs">
-          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto text-slate-500">
-            <AlertCircle className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-slate-900">Product Verification in Progress</h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Our automated ingestion engine is currently verifying retailer prices and hardware specifications for this model in {market.toUpperCase()}.
-            </p>
-          </div>
-          <button
-            onClick={loadProduct}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition-colors shadow-xs"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Retry Loading
-          </button>
-        </div>
-
         <EmptyState
-          title="Browse Other Technology Products"
-          description="Explore verified price comparisons across thousands of active technology listings."
+          title="Product Currently Unavailable in this Market"
+          description={`Verified store offers for this item are not currently active in ${market.toUpperCase()}. Explore other verified tech hardware and live deals below.`}
           actionHref={`/${market}`}
           actionText="Back to Hardware Catalog"
         />
