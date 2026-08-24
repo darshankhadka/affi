@@ -39,9 +39,8 @@ class AffiliateClickAndRedirectTest extends TestCase
         $market = Market::where('code', 'us')->first();
         $currency = Currency::where('code', 'USD')->first();
         $provider = AffiliateProvider::where('code', 'amazon')->first();
-        $retailer = Retailer::create([
+        $retailer = Retailer::firstOrCreate(['slug' => 'amazon-us'], [
             'name' => 'Amazon US',
-            'slug' => 'amazon-us',
             'domain' => 'amazon.com',
             'affiliate_provider_id' => $provider->id,
         ]);

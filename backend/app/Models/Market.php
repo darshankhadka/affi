@@ -59,6 +59,11 @@ class Market extends Model
         return $this->hasMany(BestPrice::class);
     }
 
+    public function retailers()
+    {
+        return $this->hasMany(Retailer::class, 'market_code', 'code');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);

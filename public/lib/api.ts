@@ -1,5 +1,6 @@
 export function getApiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
+  const url = process.env.NEXT_PUBLIC_API_URL || 'https://api.arikartech.com/api/v1';
+  return url.replace(/\/+$/, '');
 }
 
 export function getOutboundUrl(offerId: number | string): string {
@@ -9,7 +10,8 @@ export function getOutboundUrl(offerId: number | string): string {
 
 export async function fetchApi<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const baseUrl = getApiBaseUrl();
-  const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${baseUrl}${cleanEndpoint}`;
   
   try {
     const res = await fetch(url, {

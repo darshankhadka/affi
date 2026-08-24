@@ -19,23 +19,29 @@ export const Footer: React.FC<FooterProps> = ({ currentMarket }) => {
               <span className="font-extrabold text-base tracking-wider text-slate-900 uppercase">ARIKARTECH</span>
             </div>
             <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
-              Global technology discovery, price-comparison, and hardware deal platform. We index and compare authorized tech retailers to find you verified prices in real-time.
+              Global technology discovery, price-comparison, and hardware deal platform. We index and compare authorized tech retailers across 35 international markets in real-time.
             </p>
           </div>
 
           {/* Markets Col */}
           <div>
-            <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] mb-3">Target Markets</h4>
+            <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] mb-3">Key Global Markets</h4>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-              <Link href="/us" className="hover:text-emerald-600 transition-colors">United States (US)</Link>
-              <Link href="/uk" className="hover:text-emerald-600 transition-colors">United Kingdom (UK)</Link>
-              <Link href="/de" className="hover:text-emerald-600 transition-colors">Germany (DE)</Link>
-              <Link href="/fr" className="hover:text-emerald-600 transition-colors">France (FR)</Link>
-              <Link href="/es" className="hover:text-emerald-600 transition-colors">Spain (ES)</Link>
-              <Link href="/it" className="hover:text-emerald-600 transition-colors">Italy (IT)</Link>
-              <Link href="/nl" className="hover:text-emerald-600 transition-colors">Netherlands (NL)</Link>
-              <Link href="/au" className="hover:text-emerald-600 transition-colors">Australia (AU)</Link>
-              <Link href="/nz" className="hover:text-emerald-600 transition-colors">New Zealand (NZ)</Link>
+              <Link href="/us" className="hover:text-emerald-600 transition-colors">🇺🇸 United States</Link>
+              <Link href="/ca" className="hover:text-emerald-600 transition-colors">🇨🇦 Canada</Link>
+              <Link href="/gb" className="hover:text-emerald-600 transition-colors">🇬🇧 United Kingdom</Link>
+              <Link href="/de" className="hover:text-emerald-600 transition-colors">🇩🇪 Germany</Link>
+              <Link href="/fr" className="hover:text-emerald-600 transition-colors">🇫🇷 France</Link>
+              <Link href="/es" className="hover:text-emerald-600 transition-colors">🇪🇸 Spain</Link>
+              <Link href="/it" className="hover:text-emerald-600 transition-colors">🇮🇹 Italy</Link>
+              <Link href="/nl" className="hover:text-emerald-600 transition-colors">🇳🇱 Netherlands</Link>
+              <Link href="/se" className="hover:text-emerald-600 transition-colors">🇸🇪 Sweden</Link>
+              <Link href="/dk" className="hover:text-emerald-600 transition-colors">🇩🇰 Denmark</Link>
+              <Link href="/pl" className="hover:text-emerald-600 transition-colors">🇵🇱 Poland</Link>
+              <Link href="/ch" className="hover:text-emerald-600 transition-colors">🇨🇭 Switzerland</Link>
+              <Link href="/no" className="hover:text-emerald-600 transition-colors">🇳🇴 Norway</Link>
+              <Link href="/au" className="hover:text-emerald-600 transition-colors">🇦🇺 Australia</Link>
+              <Link href="/nz" className="hover:text-emerald-600 transition-colors">🇳🇿 New Zealand</Link>
             </div>
           </div>
 

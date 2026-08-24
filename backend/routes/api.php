@@ -33,6 +33,7 @@ Route::get('/auth/google/callback', [AuthController::class, 'googleCallback']);
 
 // Markets & Currencies
 Route::get('/markets', [MarketController::class, 'index']);
+Route::get('/markets/detect', [MarketController::class, 'detect']);
 Route::get('/markets/{code}', [MarketController::class, 'show']);
 
 // Categories & Brands
@@ -52,6 +53,8 @@ Route::get('/products/{productId}/price-history', [OfferController::class, 'pric
 
 // Outbound Affiliate Click Tracker
 Route::get('/affiliates/out/{offerId}', [AffiliateClickController::class, 'out'])
+    ->middleware('throttle:60,1');
+Route::get('/go/{offerId}', [AffiliateClickController::class, 'out'])
     ->middleware('throttle:60,1');
 
 /*
@@ -92,9 +95,10 @@ Route::middleware(['auth:sanctum', 'role:Super Admin|Admin|Editor|Analyst'])->pr
     Route::get('/affiliates/providers', [AffiliateAdminController::class, 'providers']);
     Route::put('/affiliates/providers/{id}', [AffiliateAdminController::class, 'updateProvider'])->middleware('role:Super Admin|Admin');
     Route::post('/affiliates/providers/{id}/test', [AffiliateAdminController::class, 'testProviderConnection'])->middleware('role:Super Admin|Admin');
-    Route::post('/affiliates/providers/{id}/sync', [AffiliateAdminController::class, 'triggerSync'])->middleware('role:Super Admin|Admin');
     Route::get('/affiliates/retailers', [AffiliateAdminController::class, 'retailers']);
     Route::post('/affiliates/retailers', [AffiliateAdminController::class, 'storeRetailer'])->middleware('role:Super Admin|Admin');
+    Route::put('/affiliates/retailers/{id}', [AffiliateAdminController::class, 'updateRetailer'])->middleware('role:Super Admin|Admin');
+    Route::post('/affiliates/retailers/{id}/test', [AffiliateAdminController::class, 'testRetailer'])->middleware('role:Super Admin|Admin');
 
     // Automation & Ingestion
     Route::get('/automation/jobs', [AutomationAdminController::class, 'jobs']);

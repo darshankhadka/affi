@@ -8,6 +8,8 @@ use App\Models\Category;
 use App\Models\Market;
 use App\Models\Offer;
 use App\Models\Product;
+use App\Models\ProductIdentifier;
+use App\Models\ProductImage;
 use App\Models\Retailer;
 use App\Services\Affiliate\AwinDatafeedService;
 use App\Services\Affiliate\AwinProvider;
@@ -668,5 +670,72 @@ class AwinProviderTest extends TestCase
         $this->assertNotNull($product);
         $this->assertEquals(2, $product->offers()->count());
         $this->assertEquals(2, Retailer::whereIn('name', ['Currys UK', 'Argos UK'])->count());
+    }
+
+    public function test_merchant_domain_extracted_from_deep_link_and_not_programme_website(): void
+    {
+        $this->artisan('system:init-foundation');
+        $marketGb = Market::where('code', 'gb')->first();
+        $connector = new AwinProvider();
+
+        $rawItem = [
+            'aw_product_id' => '45044130687',
+            'product_name' => 'PanzerGlass Screen Protector',
+            'merchant_name' => 'Back to the Office',
+            'merchant_id' => '61655',
+            'merchant_deep_link' => 'https://www.backtotheoffice.co.uk/products/panzerglass?variant=123',
+            'aw_deep_link' => 'https://www.awin1.com/pclick.php?p=45044130687&a=3053247&m=61655',
+            'search_price' => '24.99',
+            'currency' => 'GBP',
+        ];
+
+        $dto = $connector->normalizeAwinItem($rawItem, $marketGb);
+
+        $this->assertNotNull($dto);
+        $this->assertEquals('backtotheoffice.co.uk', $dto->offer->retailerDomain);
+        $this->assertNotEquals('blazevideos.de', $dto->offer->retailerDomain);
+    }
+
+    public function test_repeated_ingestion_is_strictly_idempotent(): void
+    {
+        $this->artisan('system:init-foundation');
+        $marketGb = Market::where('code', 'gb')->first();
+        $ingestionService = app(ProductIngestionService::class);
+        $connector = new AwinProvider();
+
+        $rawItem = [
+            'aw_product_id' => '43121597161',
+            'merchant_product_id' => '910-004424',
+            'product_name' => 'Logitech M170 Wireless Mouse',
+            'brand_name' => 'Logitech',
+            'ean' => '5099206062856',
+            'search_price' => '18.99',
+            'currency' => 'GBP',
+            'merchant_name' => 'Back to the Office',
+            'merchant_deep_link' => 'https://www.backtotheoffice.co.uk/products/logitech-m170',
+            'aw_deep_link' => 'https://www.awin1.com/pclick.php?p=43121597161&a=3053247&m=61655',
+            'merchant_image_url' => 'https://cdn.shopify.com/s/files/m170.jpg',
+        ];
+
+        $initialRetailers = Retailer::count();
+        $dto1 = $connector->normalizeAwinItem($rawItem, $marketGb);
+        $res1 = $ingestionService->ingest($dto1, $marketGb);
+
+        $this->assertEquals('created_product', $res1['action']);
+        $this->assertEquals(1, Product::count());
+        $this->assertEquals(1, Offer::count());
+        $this->assertEquals($initialRetailers + 1, Retailer::count());
+        $this->assertEquals(1, ProductImage::count());
+
+        // Ingest the EXACT same item again
+        $dto2 = $connector->normalizeAwinItem($rawItem, $marketGb);
+        $res2 = $ingestionService->ingest($dto2, $marketGb);
+
+        $this->assertEquals('matched_existing', $res2['action']);
+        // Must NOT create duplicates
+        $this->assertEquals(1, Product::count());
+        $this->assertEquals(1, Offer::count());
+        $this->assertEquals($initialRetailers + 1, Retailer::count());
+        $this->assertEquals(1, ProductImage::count());
     }
 }

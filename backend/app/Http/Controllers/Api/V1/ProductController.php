@@ -24,21 +24,33 @@ class ProductController extends BaseApiController
      */
     public function index(Request $request): JsonResponse
     {
-        $marketCode = $request->input('market', 'us');
-        $market = Market::where('code', strtolower($marketCode))->first() 
-            ?? Market::where('is_active', true)->first();
+        $marketCode = $request->input('market');
+        $market = null;
+        if (!empty($marketCode)) {
+            $market = Market::where('code', strtolower(trim((string) $marketCode)))
+                ->where('is_active', true)
+                ->first();
+        }
 
-        $query = Product::where('status', 'published')
-            ->with([
-                'brand',
-                'category',
-                'primaryImage',
-                'bestPrices' => function ($q) use ($market) {
-                    if ($market) {
-                        $q->where('market_id', $market->id)->with('currency');
-                    }
-                },
-            ]);
+        $query = Product::where('status', 'published');
+
+        if ($market) {
+            $query->whereHas('offers', function ($q) use ($market) {
+                $q->where('market_id', $market->id)
+                  ->where('is_active', true);
+            });
+        }
+
+        $query->with([
+            'brand',
+            'category',
+            'primaryImage',
+            'bestPrices' => function ($q) use ($market) {
+                if ($market) {
+                    $q->where('market_id', $market->id)->with('currency');
+                }
+            },
+        ]);
 
         // Category filter
         if ($categorySlug = $request->input('category')) {

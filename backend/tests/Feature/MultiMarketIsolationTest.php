@@ -23,7 +23,7 @@ class MultiMarketIsolationTest extends TestCase
         $this->artisan('system:init-foundation');
 
         $usMarket = Market::where('code', 'us')->first();
-        $ukMarket = Market::where('code', 'uk')->first();
+        $ukMarket = Market::where('code', 'gb')->first() ?? Market::where('code', 'uk')->first();
         $deMarket = Market::where('code', 'de')->first();
 
         $usd = Currency::where('code', 'USD')->first();
@@ -40,16 +40,14 @@ class MultiMarketIsolationTest extends TestCase
             'status' => 'published',
         ]);
 
-        $usRetailer = Retailer::create([
+        $usRetailer = Retailer::firstOrCreate(['slug' => 'best-buy-us'], [
             'name' => 'Best Buy US',
-            'slug' => 'best-buy-us',
             'domain' => 'bestbuy.com',
             'is_active' => true,
         ]);
 
-        $ukRetailer = Retailer::create([
+        $ukRetailer = Retailer::firstOrCreate(['slug' => 'currys-uk'], [
             'name' => 'Currys UK',
-            'slug' => 'currys-uk',
             'domain' => 'currys.co.uk',
             'is_active' => true,
         ]);

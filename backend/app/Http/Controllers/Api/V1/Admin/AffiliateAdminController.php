@@ -53,14 +53,38 @@ class AffiliateAdminController extends BaseApiController
     }
 
     /**
-     * List retailers
+     * List retailers with advanced filters
      */
     public function retailers(Request $request): JsonResponse
     {
         $query = Retailer::with('affiliateProvider')->withCount('offers');
 
         if ($search = $request->input('q')) {
-            $query->where('name', 'like', "%{$search}%")->orWhere('domain', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('domain', 'like', "%{$search}%")
+                  ->orWhere('slug', 'like', "%{$search}%");
+            });
+        }
+
+        if ($market = $request->input('market')) {
+            $query->where('market_code', strtolower($market));
+        }
+
+        if ($country = $request->input('country')) {
+            $query->where('country', strtoupper($country));
+        }
+
+        if ($providerId = $request->input('provider_id')) {
+            $query->where('affiliate_provider_id', $providerId);
+        }
+
+        if ($status = $request->input('status')) {
+            $query->where('status', $status);
+        }
+
+        if ($network = $request->input('network')) {
+            $query->where('affiliate_network', $network);
         }
 
         $retailers = $query->orderBy('name')->get();
@@ -75,17 +99,74 @@ class AffiliateAdminController extends BaseApiController
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'domain' => ['required', 'string', 'max:150'],
+            'country' => ['nullable', 'string', 'size:2'],
+            'market_code' => ['nullable', 'string', 'max:10'],
+            'currency_code' => ['nullable', 'string', 'max:10'],
             'logo_url' => ['nullable', 'url'],
+            'website_url' => ['nullable', 'url'],
             'affiliate_provider_id' => ['nullable', 'exists:affiliate_providers,id'],
+            'affiliate_network' => ['nullable', 'string'],
+            'status' => ['nullable', 'string'],
             'is_active' => ['boolean'],
         ]);
 
         $slug = Str::slug($validated['name']);
-        $retailer = Retailer::create(array_merge($validated, ['slug' => $slug]));
+        $retailer = Retailer::create(array_merge($validated, ['slug' => $slug, 'code' => $slug]));
 
         $this->auditLogger->log('retailer.create', $retailer, null, $retailer->toArray());
 
         return $this->success(new RetailerResource($retailer), 'Retailer registered successfully.', 201);
+    }
+
+    /**
+     * Update retailer settings
+     */
+    public function updateRetailer(Request $request, int $id): JsonResponse
+    {
+        $retailer = Retailer::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:100'],
+            'domain' => ['sometimes', 'string', 'max:150'],
+            'country' => ['nullable', 'string', 'size:2'],
+            'market_code' => ['nullable', 'string', 'max:10'],
+            'currency_code' => ['nullable', 'string', 'max:10'],
+            'logo_url' => ['nullable', 'url'],
+            'website_url' => ['nullable', 'url'],
+            'affiliate_provider_id' => ['nullable', 'exists:affiliate_providers,id'],
+            'affiliate_network' => ['nullable', 'string'],
+            'status' => ['sometimes', 'string'],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+
+        $oldValues = $retailer->toArray();
+        $retailer->update($validated);
+
+        $this->auditLogger->log('retailer.update', $retailer, $oldValues, $retailer->toArray());
+
+        return $this->success(new RetailerResource($retailer), 'Retailer updated successfully.');
+    }
+
+    /**
+     * Test single retailer configuration
+     */
+    public function testRetailer(int $id, \App\Services\Affiliate\AffiliateRegistry $registry): JsonResponse
+    {
+        $retailer = Retailer::with(['affiliateProvider', 'market'])->findOrFail($id);
+
+        $provider = $retailer->affiliateProvider;
+        $providerInstance = $provider && $registry->has($provider->code) ? $registry->get($provider->code) : null;
+
+        $providerConn = $provider && $providerInstance ? $providerInstance->testConnection($provider) : [
+            'connected' => false,
+            'status' => 'not_configured',
+            'message' => 'No active provider driver attached.',
+        ];
+
+        return $this->success([
+            'retailer' => new RetailerResource($retailer),
+            'provider_connection' => $providerConn,
+        ], 'Retailer test executed.');
     }
 
     /**

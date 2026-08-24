@@ -97,4 +97,91 @@ class ProductCatalogTest extends TestCase
                 ],
             ]);
     }
+
+    public function test_cors_headers_are_returned_for_allowed_origins(): void
+    {
+        $response = $this->withHeaders([
+            'Origin' => 'http://localhost:3000',
+        ])->getJson('/api/v1/products?market=gb');
+
+        $response->assertStatus(200);
+        $response->assertHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+    }
+
+    public function test_cors_preflight_options_request_succeeds(): void
+    {
+        $response = $this->withHeaders([
+            'Origin' => 'https://arikartech.com',
+            'Access-Control-Request-Method' => 'GET',
+            'Access-Control-Request-Headers' => 'content-type, accept',
+        ])->options('/api/v1/products?market=gb');
+
+        $response->assertStatus(204);
+        $response->assertHeader('Access-Control-Allow-Origin', 'https://arikartech.com');
+        $response->assertHeader('Access-Control-Allow-Methods', 'GET');
+    }
+
+    public function test_products_endpoint_filters_by_market_offers(): void
+    {
+        $brand = Brand::create(['name' => 'Logitech', 'slug' => 'logitech']);
+        $cat = Category::first();
+        $marketGb = Market::where('code', 'gb')->first();
+        $marketDe = Market::where('code', 'de')->first();
+        $currencyGbp = \App\Models\Currency::where('code', 'GBP')->first();
+        $currencyEur = \App\Models\Currency::where('code', 'EUR')->first();
+
+        // Product 1 with GB offer
+        $prodGb = Product::create([
+            'brand_id' => $brand->id,
+            'category_id' => $cat->id,
+            'name' => 'Logitech Mouse GB',
+            'slug' => 'logitech-mouse-gb',
+            'status' => 'published',
+        ]);
+        $retailerGb = \App\Models\Retailer::create(['name' => 'Currys', 'slug' => 'currys', 'domain' => 'currys.co.uk', 'is_active' => true]);
+        \App\Models\Offer::create([
+            'product_id' => $prodGb->id,
+            'retailer_id' => $retailerGb->id,
+            'market_id' => $marketGb->id,
+            'currency_id' => $currencyGbp->id,
+            'price' => 19.99,
+            'sku' => 'SKU_GB_1',
+            'title' => 'Logitech Mouse GB',
+            'affiliate_url' => 'https://www.awin1.com/pclick.php?p=1',
+            'is_active' => true,
+        ]);
+
+        // Product 2 with DE offer
+        $prodDe = Product::create([
+            'brand_id' => $brand->id,
+            'category_id' => $cat->id,
+            'name' => 'Logitech Mouse DE',
+            'slug' => 'logitech-mouse-de',
+            'status' => 'published',
+        ]);
+        $retailerDe = \App\Models\Retailer::create(['name' => 'Otto', 'slug' => 'otto', 'domain' => 'otto.de', 'is_active' => true]);
+        \App\Models\Offer::create([
+            'product_id' => $prodDe->id,
+            'retailer_id' => $retailerDe->id,
+            'market_id' => $marketDe->id,
+            'currency_id' => $currencyEur->id,
+            'price' => 24.99,
+            'sku' => 'SKU_DE_1',
+            'title' => 'Logitech Mouse DE',
+            'affiliate_url' => 'https://www.awin1.com/pclick.php?p=2',
+            'is_active' => true,
+        ]);
+
+        // Query GB market -> should return only Product 1
+        $resGb = $this->getJson('/api/v1/products?market=gb');
+        $resGb->assertStatus(200)
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.slug', 'logitech-mouse-gb');
+
+        // Query DE market -> should return only Product 2
+        $resDe = $this->getJson('/api/v1/products?market=de');
+        $resDe->assertStatus(200)
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.slug', 'logitech-mouse-de');
+    }
 }

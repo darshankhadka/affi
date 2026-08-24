@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class CjProvider implements AffiliateProviderInterface
+class CjProvider extends BaseAffiliateProvider
 {
     protected array $marketCurrencies = [
         'us' => 'USD',

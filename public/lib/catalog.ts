@@ -28,6 +28,14 @@ export interface BrandDef {
 }
 
 export const CANONICAL_MARKETS: MarketDef[] = [
+  // North America
+  { code: 'us', name: 'United States', currency: 'USD', symbol: '$', locale: 'en-US' },
+  { code: 'ca', name: 'Canada', currency: 'CAD', symbol: 'CA$', locale: 'en-CA' },
+
+  // United Kingdom
+  { code: 'gb', name: 'United Kingdom', currency: 'GBP', symbol: '£', locale: 'en-GB' },
+
+  // European Union (24)
   { code: 'de', name: 'Germany', currency: 'EUR', symbol: '€', locale: 'de-DE' },
   { code: 'fr', name: 'France', currency: 'EUR', symbol: '€', locale: 'fr-FR' },
   { code: 'nl', name: 'Netherlands', currency: 'EUR', symbol: '€', locale: 'nl-NL' },
@@ -38,11 +46,32 @@ export const CANONICAL_MARKETS: MarketDef[] = [
   { code: 'ie', name: 'Ireland', currency: 'EUR', symbol: '€', locale: 'en-IE' },
   { code: 'pt', name: 'Portugal', currency: 'EUR', symbol: '€', locale: 'pt-PT' },
   { code: 'fi', name: 'Finland', currency: 'EUR', symbol: '€', locale: 'fi-FI' },
-  { code: 'se', name: 'Sweden', currency: 'EUR', symbol: '€', locale: 'sv-SE' },
+  { code: 'se', name: 'Sweden', currency: 'SEK', symbol: 'kr', locale: 'sv-SE' },
   { code: 'dk', name: 'Denmark', currency: 'DKK', symbol: 'kr.', locale: 'da-DK' },
   { code: 'pl', name: 'Poland', currency: 'PLN', symbol: 'zł', locale: 'pl-PL' },
   { code: 'cz', name: 'Czech Republic', currency: 'CZK', symbol: 'Kč', locale: 'cs-CZ' },
-  { code: 'gb', name: 'United Kingdom', currency: 'GBP', symbol: '£', locale: 'en-GB' },
+  { code: 'bg', name: 'Bulgaria', currency: 'BGN', symbol: 'лв', locale: 'bg-BG' },
+  { code: 'hr', name: 'Croatia', currency: 'EUR', symbol: '€', locale: 'hr-HR' },
+  { code: 'cy', name: 'Cyprus', currency: 'EUR', symbol: '€', locale: 'el-CY' },
+  { code: 'ee', name: 'Estonia', currency: 'EUR', symbol: '€', locale: 'et-EE' },
+  { code: 'gr', name: 'Greece', currency: 'EUR', symbol: '€', locale: 'el-GR' },
+  { code: 'hu', name: 'Hungary', currency: 'HUF', symbol: 'Ft', locale: 'hu-HU' },
+  { code: 'lv', name: 'Latvia', currency: 'EUR', symbol: '€', locale: 'lv-LV' },
+  { code: 'lt', name: 'Lithuania', currency: 'EUR', symbol: '€', locale: 'lt-LT' },
+  { code: 'lu', name: 'Luxembourg', currency: 'EUR', symbol: '€', locale: 'fr-LU' },
+  { code: 'mt', name: 'Malta', currency: 'EUR', symbol: '€', locale: 'en-MT' },
+  { code: 'ro', name: 'Romania', currency: 'RON', symbol: 'lei', locale: 'ro-RO' },
+  { code: 'sk', name: 'Slovakia', currency: 'EUR', symbol: '€', locale: 'sk-SK' },
+  { code: 'si', name: 'Slovenia', currency: 'EUR', symbol: '€', locale: 'sl-SI' },
+
+  // Europe Non-EU (3)
+  { code: 'no', name: 'Norway', currency: 'NOK', symbol: 'kr', locale: 'nb-NO' },
+  { code: 'ch', name: 'Switzerland', currency: 'CHF', symbol: 'CHF', locale: 'de-CH' },
+  { code: 'is', name: 'Iceland', currency: 'ISK', symbol: 'kr', locale: 'is-IS' },
+
+  // Oceania (2)
+  { code: 'au', name: 'Australia', currency: 'AUD', symbol: 'A$', locale: 'en-AU' },
+  { code: 'nz', name: 'New Zealand', currency: 'NZD', symbol: 'NZ$', locale: 'en-NZ' },
 ];
 
 export const CANONICAL_CATEGORIES: CategoryDef[] = [

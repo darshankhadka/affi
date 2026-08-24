@@ -116,9 +116,11 @@ class ProductIngestionService
                         'display_order' => $spec->displayOrder,
                     ]);
                 }
+            }
 
-                // 6. Attach Images
-                foreach ($dto->images as $img) {
+            // 6. Attach & Deduplicate Images
+            foreach ($dto->images as $img) {
+                if (!empty($img->url) && !ProductImage::where('product_id', $product->id)->where('url', $img->url)->exists()) {
                     $imageRecord = ProductImage::create([
                         'product_id' => $product->id,
                         'url' => $img->url,
@@ -157,15 +159,26 @@ class ProductIngestionService
 
                 // Resolve Retailer & Provider
                 $provider = AffiliateProvider::where('code', $dto->providerCode ?? 'amazon')->first();
-                $retailer = Retailer::firstOrCreate(
-                    ['domain' => $offerDto->retailerDomain],
-                    [
+                $normalizedDomain = preg_replace('/^www\./i', '', strtolower(trim((string) $offerDto->retailerDomain)));
+                $retailer = Retailer::where('domain', $normalizedDomain)->first();
+                if (!$retailer) {
+                    $baseSlug = Str::slug($offerDto->retailerName);
+                    $slug = $baseSlug;
+                    if (Retailer::where('slug', $slug)->exists()) {
+                        $slug = $baseSlug . '-' . substr(md5($normalizedDomain), 0, 4);
+                    }
+                    $retailer = Retailer::create([
                         'name' => $offerDto->retailerName,
-                        'slug' => Str::slug($offerDto->retailerName),
+                        'slug' => $slug,
+                        'code' => $slug,
+                        'domain' => $normalizedDomain,
+                        'country' => strtoupper($targetMarket?->code === 'uk' ? 'GB' : ($targetMarket?->code ?? 'US')),
+                        'market_code' => $targetMarket?->code,
+                        'currency_code' => $currency?->code,
                         'affiliate_provider_id' => $provider?->id,
                         'is_active' => true,
-                    ]
-                );
+                    ]);
+                }
 
                 // Create or Update Retailer Offer
                 $offer = Offer::updateOrCreate(

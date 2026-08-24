@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class ImpactProvider implements AffiliateProviderInterface
+class ImpactProvider extends BaseAffiliateProvider
 {
     protected array $marketCurrencies = [
         'us' => 'USD',

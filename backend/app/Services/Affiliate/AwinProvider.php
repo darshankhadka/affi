@@ -15,8 +15,12 @@ use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
-class AwinProvider implements AffiliateProviderInterface
+class AwinProvider extends BaseAffiliateProvider
 {
+    public function supportsProductFeed(): bool
+    {
+        return true;
+    }
     /**
      * Regional Awin feed/API currency defaults (Europe + UK focused)
      */
@@ -289,9 +293,6 @@ class AwinProvider implements AffiliateProviderInterface
                 if (empty($record['merchant_name'])) {
                     $record['merchant_name'] = $prog['name'];
                 }
-                if (empty($record['merchant_domain']) && !empty($prog['displayUrl'])) {
-                    $record['merchant_domain'] = parse_url($prog['displayUrl'], PHP_URL_HOST) ?? $prog['displayUrl'];
-                }
 
                 $dto = $this->normalizeAwinItem($record, $market);
                 if ($dto) {
@@ -312,11 +313,11 @@ class AwinProvider implements AffiliateProviderInterface
     }
 
     /**
-     * Normalize real Awin feed row into canonical NormalizedProductDTO
+     * Normalize an individual Awin Create-a-Feed item into canonical DTO
      */
     public function normalizeAwinItem(array $item, Market $market): ?NormalizedProductDTO
     {
-        $id = $item['aw_product_id'] ?? $item['merchant_product_id'] ?? $item['id'] ?? $item['product_id'] ?? null;
+        $id = $item['aw_product_id'] ?? $item['merchant_product_id'] ?? null;
         $title = $item['product_name'] ?? $item['title'] ?? null;
 
         if (!$title || !$id) {
@@ -372,21 +373,37 @@ class AwinProvider implements AffiliateProviderInterface
         $currency = $item['currency'] ?? $this->marketDefaults[$market->code]['currency'] ?? 'EUR';
         $merchantName = $item['merchant_name'] ?? $item['merchant_id'] ?? 'Awin Partner';
         
+        // Accurate Merchant Domain Extraction: Never blindly use programme website
         $merchantDomain = null;
-        if (!empty($item['merchant_domain'])) {
-            $merchantDomain = strtolower(trim((string) $item['merchant_domain']));
-        } elseif (!empty($item['merchant_deep_link'])) {
+        if (!empty($item['merchant_deep_link'])) {
             $merchantDomain = parse_url($item['merchant_deep_link'], PHP_URL_HOST);
         } elseif (!empty($item['product_url'])) {
             $merchantDomain = parse_url($item['product_url'], PHP_URL_HOST);
-        } elseif (!empty($item['displayUrl'])) {
-            $merchantDomain = parse_url($item['displayUrl'], PHP_URL_HOST);
+        } elseif (!empty($item['aw_deep_link'])) {
+            $parts = parse_url($item['aw_deep_link']);
+            if (!empty($parts['query'])) {
+                parse_str($parts['query'], $query);
+                if (!empty($query['ued'])) {
+                    $merchantDomain = parse_url($query['ued'], PHP_URL_HOST);
+                }
+            }
         }
 
+        // Clean & normalize domain
         if (!empty($merchantDomain)) {
-            $merchantDomain = preg_replace('/^www\./i', '', strtolower($merchantDomain));
-        } else {
-            $merchantDomain = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $merchantName)) . '.com';
+            $merchantDomain = preg_replace('/^www\./i', '', strtolower(trim($merchantDomain)));
+            // Remove port if present
+            $merchantDomain = preg_replace('/:\d+$/', '', $merchantDomain);
+        }
+
+        // Fallback only if no destination URL exists in feed row
+        if (empty($merchantDomain) || in_array($merchantDomain, ['awin1.com', 'productserve.com', 'zenaps.com'])) {
+            if ((string) ($item['merchant_id'] ?? '') === '25962' || str_contains(strtolower((string) $merchantName), 'blazevideo')) {
+                $merchantDomain = 'blazevideos.de';
+            } else {
+                $cleanName = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $merchantName));
+                $merchantDomain = $cleanName . ($market->code === 'gb' ? '.co.uk' : '.com');
+            }
         }
 
         // Deep links

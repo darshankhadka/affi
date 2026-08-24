@@ -70,80 +70,10 @@ class SeedInitialRolesAndMarketsCommand extends Command
         ]);
         $this->info('Roles and permissions configured.');
 
-        // 3. Default Currencies (Europe + UK focus, plus legacy currencies)
-        $eur = Currency::firstOrCreate(['code' => 'EUR'], ['name' => 'Euro', 'symbol' => '€', 'rate_to_usd' => 1.09, 'decimals' => 2, 'is_active' => true]);
-        $gbp = Currency::firstOrCreate(['code' => 'GBP'], ['name' => 'British Pound', 'symbol' => '£', 'rate_to_usd' => 1.28, 'decimals' => 2, 'is_active' => true]);
-        $dkk = Currency::firstOrCreate(['code' => 'DKK'], ['name' => 'Danish Krone', 'symbol' => 'kr.', 'rate_to_usd' => 0.15, 'decimals' => 2, 'is_active' => true]);
-        $pln = Currency::firstOrCreate(['code' => 'PLN'], ['name' => 'Polish Zloty', 'symbol' => 'zł', 'rate_to_usd' => 0.25, 'decimals' => 2, 'is_active' => true]);
-        $czk = Currency::firstOrCreate(['code' => 'CZK'], ['name' => 'Czech Koruna', 'symbol' => 'Kč', 'rate_to_usd' => 0.043, 'decimals' => 2, 'is_active' => true]);
-        $usd = Currency::firstOrCreate(['code' => 'USD'], ['name' => 'US Dollar', 'symbol' => '$', 'rate_to_usd' => 1.0, 'decimals' => 2, 'is_active' => true]);
-        $aud = Currency::firstOrCreate(['code' => 'AUD'], ['name' => 'Australian Dollar', 'symbol' => 'A$', 'rate_to_usd' => 0.66, 'decimals' => 2, 'is_active' => true]);
-        $nzd = Currency::firstOrCreate(['code' => 'NZD'], ['name' => 'New Zealand Dollar', 'symbol' => 'NZ$', 'rate_to_usd' => 0.61, 'decimals' => 2, 'is_active' => true]);
-
-        // 4. Primary Target Markets (Europe / EU + UK Active; Non-EU/US Inactive)
-        $marketsData = [
-            // Active European & UK Markets
-            ['code' => 'de', 'name' => 'Germany', 'default_currency_id' => $eur->id, 'locale' => 'de-DE', 'hreflang' => 'de-de', 'is_active' => true, 'display_order' => 1],
-            ['code' => 'fr', 'name' => 'France', 'default_currency_id' => $eur->id, 'locale' => 'fr-FR', 'hreflang' => 'fr-fr', 'is_active' => true, 'display_order' => 2],
-            ['code' => 'nl', 'name' => 'Netherlands', 'default_currency_id' => $eur->id, 'locale' => 'nl-NL', 'hreflang' => 'nl-nl', 'is_active' => true, 'display_order' => 3],
-            ['code' => 'es', 'name' => 'Spain', 'default_currency_id' => $eur->id, 'locale' => 'es-ES', 'hreflang' => 'es-es', 'is_active' => true, 'display_order' => 4],
-            ['code' => 'it', 'name' => 'Italy', 'default_currency_id' => $eur->id, 'locale' => 'it-IT', 'hreflang' => 'it-it', 'is_active' => true, 'display_order' => 5],
-            ['code' => 'be', 'name' => 'Belgium', 'default_currency_id' => $eur->id, 'locale' => 'nl-BE', 'hreflang' => 'nl-be', 'is_active' => true, 'display_order' => 6],
-            ['code' => 'at', 'name' => 'Austria', 'default_currency_id' => $eur->id, 'locale' => 'de-AT', 'hreflang' => 'de-at', 'is_active' => true, 'display_order' => 7],
-            ['code' => 'ie', 'name' => 'Ireland', 'default_currency_id' => $eur->id, 'locale' => 'en-IE', 'hreflang' => 'en-ie', 'is_active' => true, 'display_order' => 8],
-            ['code' => 'pt', 'name' => 'Portugal', 'default_currency_id' => $eur->id, 'locale' => 'pt-PT', 'hreflang' => 'pt-pt', 'is_active' => true, 'display_order' => 9],
-            ['code' => 'fi', 'name' => 'Finland', 'default_currency_id' => $eur->id, 'locale' => 'fi-FI', 'hreflang' => 'fi-fi', 'is_active' => true, 'display_order' => 10],
-            ['code' => 'se', 'name' => 'Sweden', 'default_currency_id' => $eur->id, 'locale' => 'sv-SE', 'hreflang' => 'sv-se', 'is_active' => true, 'display_order' => 11],
-            ['code' => 'dk', 'name' => 'Denmark', 'default_currency_id' => $dkk->id, 'locale' => 'da-DK', 'hreflang' => 'da-dk', 'is_active' => true, 'display_order' => 12],
-            ['code' => 'pl', 'name' => 'Poland', 'default_currency_id' => $pln->id, 'locale' => 'pl-PL', 'hreflang' => 'pl-pl', 'is_active' => true, 'display_order' => 13],
-            ['code' => 'cz', 'name' => 'Czech Republic', 'default_currency_id' => $czk->id, 'locale' => 'cs-CZ', 'hreflang' => 'cs-cz', 'is_active' => true, 'display_order' => 14],
-            ['code' => 'gb', 'name' => 'United Kingdom', 'default_currency_id' => $gbp->id, 'locale' => 'en-GB', 'hreflang' => 'en-gb', 'is_active' => true, 'display_order' => 15],
-
-            // Legacy Non-Target Markets (Preserved in DB, marked inactive for public SEO)
-            ['code' => 'us', 'name' => 'United States', 'default_currency_id' => $usd->id, 'locale' => 'en-US', 'hreflang' => 'en-us', 'is_active' => false, 'display_order' => 90],
-            ['code' => 'uk', 'name' => 'United Kingdom (Legacy)', 'default_currency_id' => $gbp->id, 'locale' => 'en-GB', 'hreflang' => 'en-gb', 'is_active' => false, 'display_order' => 91],
-            ['code' => 'au', 'name' => 'Australia', 'default_currency_id' => $aud->id, 'locale' => 'en-AU', 'hreflang' => 'en-au', 'is_active' => false, 'display_order' => 92],
-            ['code' => 'nz', 'name' => 'New Zealand', 'default_currency_id' => $nzd->id, 'locale' => 'en-NZ', 'hreflang' => 'en-nz', 'is_active' => false, 'display_order' => 93],
-        ];
-
-        $iso3Map = [
-            'de' => 'DEU',
-            'fr' => 'FRA',
-            'nl' => 'NLD',
-            'es' => 'ESP',
-            'it' => 'ITA',
-            'be' => 'BEL',
-            'at' => 'AUT',
-            'ie' => 'IRL',
-            'pt' => 'PRT',
-            'fi' => 'FIN',
-            'se' => 'SWE',
-            'dk' => 'DNK',
-            'pl' => 'POL',
-            'cz' => 'CZE',
-            'gb' => 'GBR',
-            'uk' => 'GBR',
-            'us' => 'USA',
-            'au' => 'AUS',
-            'nz' => 'NZL',
-        ];
-
-        foreach ($marketsData as $mData) {
-            $m = Market::updateOrCreate(['code' => $mData['code']], $mData);
-            // Link country
-            $iso2 = strtoupper($mData['code'] === 'uk' ? 'GB' : $mData['code']);
-            $iso3 = $iso3Map[$mData['code']] ?? strtoupper($mData['code']);
-            Country::updateOrCreate(
-                ['iso_code_2' => $iso2],
-                [
-                    'iso_code_3' => $iso3,
-                    'name' => $mData['name'],
-                    'currency_id' => $mData['default_currency_id'],
-                    'market_id' => $m->id,
-                ]
-            );
-        }
-        $this->info('Currencies and Europe + UK markets created.');
+        // 3. Seed Global Currencies, 35 Markets, and 105 Locked Retailers
+        $matrixSeeder = new \Database\Seeders\GlobalRetailerMatrixSeeder();
+        $matrixSeeder->run();
+        $this->info('Global 35-market matrix, currencies, and 105 locked retailers initialized.');
 
         // 5. Initial Locked Tech Categories
         $categories = [

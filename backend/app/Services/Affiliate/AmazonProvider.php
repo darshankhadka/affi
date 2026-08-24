@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class AmazonProvider implements AffiliateProviderInterface
+class AmazonProvider extends BaseAffiliateProvider
 {
     protected AmazonSigV4Signer $signer;
 

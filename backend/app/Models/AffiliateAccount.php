@@ -12,11 +12,15 @@ class AffiliateAccount extends Model
     protected $fillable = [
         'provider_id',
         'market_id',
+        'retailer_id',
         'account_tag',
+        'credentials',
+        'status',
         'is_active',
     ];
 
     protected $casts = [
+        'credentials' => 'encrypted:array',
         'is_active' => 'boolean',
     ];
 
@@ -28,5 +32,10 @@ class AffiliateAccount extends Model
     public function market()
     {
         return $this->belongsTo(Market::class);
+    }
+
+    public function retailer()
+    {
+        return $this->belongsTo(Retailer::class);
     }
 }

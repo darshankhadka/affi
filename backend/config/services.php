@@ -68,4 +68,26 @@ return [
         'media_partner_id' => env('IMPACT_MEDIA_PARTNER_ID'),
     ],
 
+    'tradedoubler' => [
+        'token' => env('TRADEDOUBLER_TOKEN'),
+        'affiliate_id' => env('TRADEDOUBLER_AFFILIATE_ID'),
+    ],
+
+    'rakuten' => [
+        'token' => env('RAKUTEN_API_TOKEN'),
+        'mid' => env('RAKUTEN_MID'),
+        'site_id' => env('RAKUTEN_SITE_ID'),
+    ],
+
+    'partnerize' => [
+        'user_key' => env('PARTNERIZE_USER_KEY'),
+        'api_key' => env('PARTNERIZE_API_KEY'),
+        'publisher_id' => env('PARTNERIZE_PUBLISHER_ID'),
+        'camref' => env('PARTNERIZE_CAMREF'),
+    ],
+
+    'direct_feed' => [
+        'url' => env('DIRECT_DATAFEED_URL'),
+    ],
+
 ];

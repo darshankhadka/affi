@@ -15,12 +15,20 @@ class AffiliateRegistry
         ?AmazonProvider $amazon = null,
         ?AwinProvider $awin = null,
         ?CjProvider $cj = null,
-        ?ImpactProvider $impact = null
+        ?ImpactProvider $impact = null,
+        ?TradeDoublerProvider $tradedoubler = null,
+        ?RakutenProvider $rakuten = null,
+        ?PartnerizeProvider $partnerize = null,
+        ?DirectFeedProvider $direct = null
     ) {
         $this->register($amazon ?? new AmazonProvider());
         $this->register($awin ?? new AwinProvider());
         $this->register($cj ?? new CjProvider());
         $this->register($impact ?? new ImpactProvider());
+        $this->register($tradedoubler ?? new TradeDoublerProvider());
+        $this->register($rakuten ?? new RakutenProvider());
+        $this->register($partnerize ?? new PartnerizeProvider());
+        $this->register($direct ?? new DirectFeedProvider());
     }
 
     public function register(AffiliateProviderInterface $provider): void
