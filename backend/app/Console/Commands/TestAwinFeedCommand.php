@@ -83,7 +83,8 @@ class TestAwinFeedCommand extends Command
         $this->line("Advertiser Region: <comment>{$targetProgramme['primaryRegion']['countryCode']} ({$targetProgramme['currencyCode']})</comment>");
         $this->line("Target Market: <comment>{$market->name} ({$market->code})</comment>");
 
-        $feedUrl = $datafeedService->getFeedUrl($targetProgramme['id'], $market);
+        $feedSource = $datafeedService->resolveFeedSource($provider, (int) $targetProgramme['id'], $market);
+        $feedUrl = $feedSource?->getUrl() ?? '';
 
         if (empty($feedUrl)) {
             $this->line("Datafeed URL: <error>NOT CONFIGURED</error>");
@@ -96,6 +97,7 @@ class TestAwinFeedCommand extends Command
 
         // Mask API token in displayed URL
         $maskedUrl = preg_replace('/apikey\/[^\/]+/', 'apikey/********', $feedUrl);
+        $this->line("Feed Type: <comment>" . ($feedSource->getType()) . "</comment>");
         $this->line("Feed URL: <comment>{$maskedUrl}</comment>\n");
 
         $this->line("Connecting and streaming feed response...");

@@ -3,6 +3,7 @@
 namespace App\Services\Ingestion;
 
 use App\DTOs\NormalizedProductDTO;
+use App\DTOs\RetailerIdentityInput;
 use App\Models\AffiliateProvider;
 use App\Models\Brand;
 use App\Models\Category;
@@ -16,6 +17,7 @@ use App\Models\Retailer;
 use App\Services\Matching\ProductMatchingService;
 use App\Services\Normalization\ProductNormalizer;
 use App\Services\Pricing\BestPriceService;
+use App\Support\SecretRedactor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
@@ -25,18 +27,20 @@ class ProductIngestionService
     public function __construct(
         protected ProductNormalizer $normalizer,
         protected ProductMatchingService $matchingService,
-        protected BestPriceService $bestPriceService
+        protected BestPriceService $bestPriceService,
+        protected ?RetailerIdentityService $retailerIdentityService = null
     ) {
+        $this->retailerIdentityService ??= new RetailerIdentityService();
     }
 
     /**
-     * Ingest a normalized product payload into the canonical catalog and offers table
+     * Ingest a normalized product payload into the canonical catalog and offers table.
      *
      * @return array{
      *   success: bool,
      *   product: ?Product,
      *   offer: ?Offer,
-     *   action: string, // 'created_product', 'matched_existing', 'skipped_ambiguous', 'failed'
+     *   action: string,
      *   match_type: ?string,
      *   error: ?string
      * }
@@ -45,7 +49,6 @@ class ProductIngestionService
     {
         $dto = $this->normalizer->normalize($rawDto);
 
-        // Prepare matching payload
         $identifierMap = [];
         foreach ($dto->identifiers as $id) {
             $identifierMap[$id->type] = $id->value;
@@ -64,34 +67,14 @@ class ProductIngestionService
             $action = 'matched_existing';
 
             if (!$product) {
-                // 1. Resolve Brand
-                $brand = Brand::firstOrCreate(
-                    ['slug' => Str::slug($dto->brandName)],
-                    ['name' => $dto->brandName, 'is_active' => true]
-                );
+                $brand = $this->resolveBrand($dto->brandName);
+                $category = $this->resolveCategory($dto->categorySlug);
 
-                // 2. Resolve Category
-                $category = null;
-                if ($dto->categorySlug) {
-                    $category = Category::where('slug', $dto->categorySlug)->first();
-                }
-                if (!$category) {
-                    $category = Category::where('is_active', true)->orderBy('display_order')->first()
-                        ?? Category::first();
-                }
+                $slug = $this->uniqueProductSlug($dto->name);
 
-                // 3. Generate unique product slug
-                $slug = Str::slug($dto->name);
-                $originalSlug = $slug;
-                $counter = 1;
-                while (Product::where('slug', $slug)->exists()) {
-                    $slug = "{$originalSlug}-" . $counter++;
-                }
-
-                // 4. Create Canonical Product
                 $product = Product::create([
                     'brand_id' => $brand->id,
-                    'category_id' => $category?->id ?? 1,
+                    'category_id' => $category?->id, // nullable: no fabricated fallback id
                     'name' => $dto->name,
                     'slug' => $slug,
                     'model_number' => $dto->modelNumber,
@@ -106,7 +89,6 @@ class ProductIngestionService
                 $isNewProduct = true;
                 $action = 'created_product';
 
-                // 5. Attach Specifications
                 foreach ($dto->specifications as $spec) {
                     ProductSpecification::create([
                         'product_id' => $product->id,
@@ -118,7 +100,6 @@ class ProductIngestionService
                 }
             }
 
-            // 6. Attach & Deduplicate Images
             foreach ($dto->images as $img) {
                 if (!empty($img->url) && !ProductImage::where('product_id', $product->id)->where('url', $img->url)->exists()) {
                     $imageRecord = ProductImage::create([
@@ -137,58 +118,67 @@ class ProductIngestionService
                 }
             }
 
-            // 7. Register any newly verified identifiers to canonical product
             foreach ($dto->identifiers as $idDto) {
                 $this->matchingService->registerIdentifier($product, $idDto->type, $idDto->value);
             }
 
-            // 8. Process Offer if present in DTO
             $offer = null;
             if ($dto->offer) {
                 $offerDto = $dto->offer;
 
-                // Resolve Target Market
-                $targetMarket = $market 
+                $targetMarket = $market
                     ?? Market::where('code', strtolower($offerDto->marketCode ?? 'us'))->first()
                     ?? Market::where('is_active', true)->first();
 
-                // Resolve Currency
-                $currency = Currency::where('code', strtoupper($offerDto->currencyCode))->first()
-                    ?? $targetMarket?->defaultCurrency
-                    ?? Currency::first();
-
-                // Resolve Retailer & Provider
-                $provider = AffiliateProvider::where('code', $dto->providerCode ?? 'amazon')->first();
-                $normalizedDomain = preg_replace('/^www\./i', '', strtolower(trim((string) $offerDto->retailerDomain)));
-                $retailer = Retailer::where('domain', $normalizedDomain)->first();
-                if (!$retailer) {
-                    $baseSlug = Str::slug($offerDto->retailerName);
-                    $slug = $baseSlug;
-                    if (Retailer::where('slug', $slug)->exists()) {
-                        $slug = $baseSlug . '-' . substr(md5($normalizedDomain), 0, 4);
-                    }
-                    $retailer = Retailer::create([
-                        'name' => $offerDto->retailerName,
-                        'slug' => $slug,
-                        'code' => $slug,
-                        'domain' => $normalizedDomain,
-                        'country' => strtoupper($targetMarket?->code === 'uk' ? 'GB' : ($targetMarket?->code ?? 'US')),
-                        'market_code' => $targetMarket?->code,
-                        'currency_code' => $currency?->code,
-                        'affiliate_provider_id' => $provider?->id,
-                        'is_active' => true,
-                    ]);
+                if (!$targetMarket) {
+                    return [
+                        'success' => false,
+                        'product' => $product,
+                        'offer' => null,
+                        'action' => $action,
+                        'match_type' => $matchResult['match_type'],
+                        'error' => 'No target market available for offer ingestion.',
+                    ];
                 }
 
-                // Create or Update Retailer Offer
+                $currency = Currency::where('code', strtoupper($offerDto->currencyCode))->first()
+                    ?? $targetMarket->defaultCurrency
+                    ?? Currency::first();
+
+                if (!$currency) {
+                    return [
+                        'success' => false,
+                        'product' => $product,
+                        'offer' => null,
+                        'action' => $action,
+                        'match_type' => $matchResult['match_type'],
+                        'error' => "Currency [{$offerDto->currencyCode}] is not configured; refusing to fabricate price record.",
+                    ];
+                }
+
+                $provider = AffiliateProvider::where('code', $dto->providerCode ?? 'amazon')->first();
+                $retailer = $this->retailerIdentityService->resolveOrCreate(new RetailerIdentityInput(
+                    providerId: $provider?->id,
+                    advertiserId: $offerDto->merchantId ?? $this->extractAdvertiserId($dto),
+                    providerCode: $dto->providerCode ?? 'amazon',
+                    name: $offerDto->retailerName,
+                    domain: $offerDto->retailerDomain,
+                    marketCode: $targetMarket->code,
+                    currencyCode: $currency->code,
+                    websiteUrl: $this->safeUrl($offerDto->originalUrl) ?? $this->safeUrl($offerDto->affiliateUrl),
+                ));
+
+                $externalOfferKey = $this->resolveExternalOfferKey($offerDto, $dto, $retailer);
+
                 $offer = Offer::updateOrCreate(
                     [
                         'product_id' => $product->id,
                         'retailer_id' => $retailer->id,
                         'market_id' => $targetMarket->id,
-                        'sku' => $offerDto->sku,
+                        'external_offer_key' => $externalOfferKey,
                     ],
                     [
+                        'sku' => $offerDto->sku,
                         'currency_id' => $currency->id,
                         'title' => $offerDto->title,
                         'affiliate_url' => $offerDto->affiliateUrl,
@@ -205,10 +195,7 @@ class ProductIngestionService
                     ]
                 );
 
-                // Log price history snapshot only on shift
                 $this->bestPriceService->recordPriceHistory($offer);
-
-                // Materialize best price index
                 $this->bestPriceService->recalculate($product, $targetMarket);
             }
 
@@ -221,5 +208,104 @@ class ProductIngestionService
                 'error' => null,
             ];
         });
+    }
+
+    protected function resolveBrand(string $brandName): Brand
+    {
+        $name = trim($brandName);
+        if ($name === '' || strtolower($name) === 'generic') {
+            $name = 'Generic';
+        }
+
+        $slug = Str::slug($name);
+        if ($slug === '' || $slug === 'generic') {
+            return Brand::firstOrCreate(['slug' => 'generic'], ['name' => 'Generic', 'is_active' => true]);
+        }
+
+        return Brand::firstOrCreate(['slug' => $slug], ['name' => $name, 'is_active' => true]);
+    }
+
+    /**
+     * Resolve a category by slug; never fabricate an arbitrary id (e.g. id 1).
+     * Falls back to a stable "uncategorized" category which is created on demand.
+     */
+    protected function resolveCategory(?string $slug): ?Category
+    {
+        if ($slug) {
+            $category = Category::where('slug', $slug)->first();
+            if ($category) {
+                return $category;
+            }
+        }
+
+        $root = Category::where('is_active', true)->orderBy('display_order')->first();
+        if ($root) {
+            return $root;
+        }
+
+        return Category::firstOrCreate(
+            ['slug' => 'uncategorized'],
+            ['name' => 'Uncategorized', 'is_active' => true, 'display_order' => 9999]
+        );
+    }
+
+    /**
+     * Generate a product slug that is unique (retry-safe, no blind race loop).
+     */
+    protected function uniqueProductSlug(string $name): string
+    {
+        $base = Str::slug($name) ?: 'product';
+        if (!Product::where('slug', $base)->exists()) {
+            return $base;
+        }
+
+        // Short deterministic hash keeps collisions bounded and stable per name.
+        $suffix = substr(md5($name), 0, 6);
+        $candidate = $base . '-' . $suffix;
+        $i = 1;
+        while (Product::where('slug', $candidate)->exists()) {
+            $candidate = $base . '-' . $suffix . '-' . $i++;
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Extract a stable external advertiser/programme id from the DTO when present.
+     */
+    protected function extractAdvertiserId(NormalizedProductDTO $dto): ?string
+    {
+        // Use the Awin programme id if it was carried on the offer/provider.
+        if ($dto->providerCode === 'awin' && $dto->externalId) {
+            // externalId is aw_product_id; we cannot derive advertiser from it reliably,
+            // so rely on retailer identity via domain + downstream programme linkage.
+            return null;
+        }
+        return null;
+    }
+
+    /**
+     * Derive a stable offer identity key. When the feed SKU is empty we use the
+     * Awin merchant/product ids so the (product, retailer, market) tuple stays unique.
+     */
+    protected function resolveExternalOfferKey($offerDto, NormalizedProductDTO $dto, Retailer $retailer): string
+    {
+        if (!empty($offerDto->sku)) {
+            return (string) $offerDto->sku;
+        }
+
+        if ($dto->externalId) {
+            return 'aw-' . $dto->externalId;
+        }
+
+        return 'ext-' . md5($dto->providerCode . '|' . $retailer->id . '|' . ($offerDto->title ?? $dto->name));
+    }
+
+    protected function safeUrl(?string $url): ?string
+    {
+        if (empty($url)) {
+            return null;
+        }
+        return SecretRedactor::sanitizeUrl($url) ?: null;
     }
 }

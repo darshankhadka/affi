@@ -17,6 +17,7 @@ class Offer extends Model
         'market_id',
         'currency_id',
         'sku',
+        'external_offer_key',
         'title',
         'affiliate_url',
         'original_url',

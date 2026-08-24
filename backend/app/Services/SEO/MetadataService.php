@@ -18,7 +18,8 @@ class MetadataService
      */
     public function getProductMetadata(Product $product, Market $market): array
     {
-        $siteUrl = config('app.url', 'https://arikartech.com');
+        // Use frontend.url (public storefront) — NOT app.url (which may be the API subdomain)
+        $siteUrl = config('frontend.url', 'https://arikartech.com');
         $canonicalUrl = "{$siteUrl}/{$market->code}/products/{$product->slug}";
         $brandName = $product->brand?->name ?? 'Tech';
         
@@ -66,7 +67,7 @@ class MetadataService
      */
     public function getCategoryMetadata(Category $category, Market $market): array
     {
-        $siteUrl = config('app.url', 'https://arikartech.com');
+        $siteUrl = config('frontend.url', 'https://arikartech.com');
         $canonicalUrl = "{$siteUrl}/{$market->code}/categories/{$category->slug}";
 
         $title = "Best {$category->name} Deals & Price Comparison ({$market->name}) | ARIKARTECH";

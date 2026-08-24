@@ -4,7 +4,9 @@ namespace App\Services\Affiliate;
 
 use App\Models\AffiliateProvider;
 use App\Models\Market;
-use GuzzleHttp\Client as GuzzleClient;
+use App\Services\Affiliate\Feeds\FeedSource;
+use App\Services\Affiliate\Feeds\FeedSourceFactory;
+use App\Services\Affiliate\Feeds\PublisherWideFeedSource;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -120,6 +122,17 @@ class AwinDatafeedService
     ];
 
     /**
+     * Secrets that must never appear in logs/exceptions
+     */
+    protected const SENSITIVE_PATTERNS = [
+        '/apikey\/[^\/]+/i' => 'apikey/*****',
+        '/api[_-]?key[=:]\s*[^\s&]+/i' => 'api_key=*****',
+        '/token[=:]\s*[^\s&]+/i' => 'token=*****',
+        '/authorization:\s*bearer\s+[^\s]+/i' => 'Authorization: Bearer *****',
+        '/bearer\s+[^\s]+/i' => 'Bearer *****',
+    ];
+
+    /**
      * Fetch joined advertiser programmes from Awin Publisher API
      */
     public function getJoinedProgrammes(AffiliateProvider $provider): array
@@ -153,7 +166,7 @@ class AwinDatafeedService
             }
 
             if (!$response->successful()) {
-                throw new RuntimeException("Awin API HTTP Error {$status} [{$latency}ms]: " . substr($response->body(), 0, 200));
+                throw new RuntimeException("Awin API HTTP Error {$status} [{$latency}ms]: " . $this->sanitize($response->body()));
             }
 
             $raw = $response->json();
@@ -191,34 +204,50 @@ class AwinDatafeedService
     }
 
     /**
-     * Resolve the feed URL for an advertiser
+     * Resolve the appropriate FeedSource for Awin based on configuration.
+     * 
+     * Priority:
+     * 1. Publisher-wide configured feed (AWIN_DATAFEED_URL) - shared across all advertisers
+     * 2. Advertiser-specific feed (/mid/{advertiserId}) - per advertiser
+     * 3. Nothing configured
      */
-    public function getFeedUrl(
-        int|string $advertiserId,
-        Market $market,
-        ?string $apiKey = null,
-        bool $gzip = true
-    ): string {
-        $customUrl = config('services.awin.datafeed_url');
-        if (!empty($customUrl)) {
-            return $customUrl;
-        }
+    public function resolveFeedSource(
+        AffiliateProvider $provider,
+        ?int $advertiserId = null,
+        ?Market $market = null
+    ): ?FeedSource {
+        $providerConfig = $provider->config ?? [];
+        $appConfig = config('services.awin', []);
 
-        $key = $apiKey ?: config('services.awin.datafeed_api_key');
-        if (empty($key)) {
-            return '';
-        }
-
-        $lang = in_array($market->code, ['gb', 'uk', 'ie']) ? 'en' : $market->code;
-        $cols = implode(',', self::COMPREHENSIVE_FEED_COLUMNS);
-        $compression = $gzip ? 'compression/gzip/' : '';
-
-        return "https://productdata.awin.com/datafeed/download/apikey/{$key}/language/{$lang}/mid/{$advertiserId}/columns/{$cols}/format/csv/delimiter/%2C/{$compression}";
+        return FeedSourceFactory::createForAwin($providerConfig, $appConfig, $advertiserId, $market);
     }
 
     /**
-     * Stream and parse feed records with bounded memory and incremental decompression
+     * Resolve multiple advertiser-specific feed sources.
+     * Only used when NO publisher-wide feed is configured.
+     */
+    public function resolveAdvertiserFeedSources(
+        AffiliateProvider $provider,
+        array $advertiserIds,
+        ?Market $market = null
+    ): array {
+        $providerConfig = $provider->config ?? [];
+        $appConfig = config('services.awin', []);
+
+        // Check if publisher-wide feed is configured - if so, don't create advertiser feeds
+        $configuredFeedUrl = $providerConfig['datafeed_url'] ?? $appConfig['datafeed_url'] ?? null;
+        if (!empty($configuredFeedUrl)) {
+            return [];
+        }
+
+        return FeedSourceFactory::createAdvertiserFeedsForAwin($providerConfig, $appConfig, $advertiserIds, $market);
+    }
+
+    /**
+     * Stream and parse feed records with bounded memory and incremental decompression.
+     * Supports both publisher-wide and advertiser-specific feeds.
      *
+     * @param FeedSource|string $feedSource Either a FeedSource object or a raw URL (legacy)
      * @return array{
      *   success: bool,
      *   records: array<int, array<string, mixed>>,
@@ -229,16 +258,20 @@ class AwinDatafeedService
      *   latency_ms: int,
      *   ttfb_ms: int,
      *   error_code: ?string,
-     *   error: ?string
+     *   error: ?string,
+     *   feed_type: string
      * }
      */
     public function streamFeedRecords(
-        string $feedUrl,
+        FeedSource|string $feedSource,
         ?string $keywords = null,
         ?Market $market = null,
         int $limit = 50,
         ?callable $progressCallback = null
     ): array {
+        $feedUrl = $feedSource instanceof FeedSource ? $feedSource->getUrl() : $feedSource;
+        $feedType = $feedSource instanceof FeedSource ? $feedSource->getType() : 'unknown';
+
         if (empty($feedUrl)) {
             return [
                 'success' => false,
@@ -250,7 +283,8 @@ class AwinDatafeedService
                 'latency_ms' => 0,
                 'ttfb_ms' => 0,
                 'error_code' => 'missing_configuration',
-                'error' => 'Awin Datafeed URL is not configured (set AWIN_DATAFEED_URL in backend/.env).',
+                'error' => 'Awin Datafeed URL is not configured.',
+                'feed_type' => $feedType,
             ];
         }
 
@@ -290,7 +324,8 @@ class AwinDatafeedService
                     'latency_ms' => $elapsed,
                     'ttfb_ms' => $ttfb,
                     'error_code' => $this->classifyHttpStatus($status),
-                    'error' => "HTTP {$status}: " . $bodyPreview,
+                    'error' => "HTTP {$status}: " . $this->sanitize($bodyPreview),
+                    'feed_type' => $feedType,
                 ];
             }
 
@@ -311,10 +346,12 @@ class AwinDatafeedService
 
             // ZIP handling (if whole archive needed, buffer safely to temp file)
             if ($isZip) {
-                return $this->handleZipStream($body, $keywords, $market, $limit, $headerMap, $t0, $ttfb, $progressCallback);
+                $result = $this->handleZipStream($body, $keywords, $market, $limit, $headerMap, $t0, $ttfb, $progressCallback);
+                $result['feed_type'] = $feedType;
+                return $result;
             }
 
-            // Streaming incremental GZIP / Plain CSV parsing
+            // Streaming incremental GZIP / Plain CSV parsing with proper CSV handling
             $inflator = $isGzip ? @inflate_init(ZLIB_ENCODING_GZIP) : null;
             $buffer = '';
             $headersParsed = false;
@@ -353,66 +390,16 @@ class AwinDatafeedService
                     $buffer .= $chunk;
                 }
 
-                // Process complete lines from buffer
-                while (($pos = strpos($buffer, "\n")) !== false) {
-                    $line = substr($buffer, 0, $pos);
-                    $buffer = substr($buffer, $pos + 1);
-                    $line = trim($line, "\r\n");
-                    if ($line === '') {
-                        continue;
-                    }
-
-                    // 1. First line = CSV Header
-                    if (!$headersParsed) {
-                        $stream = fopen('php://memory', 'r+');
-                        fwrite($stream, $line);
-                        rewind($stream);
-                        $rawH = fgetcsv($stream, 0, ',');
-                        fclose($stream);
-
-                        if (!empty($rawH) && is_array($rawH)) {
-                            $cleanHeaders = array_map(function ($h) {
-                                return trim(str_replace(["\xEF\xBB\xBF", '"', "'"], '', (string) $h));
-                            }, $rawH);
-                            $headersParsed = true;
-                        }
-                        continue;
-                    }
-
+                // Process complete CSV records from buffer (handles quoted newlines)
+                $parsedRecords = $this->parseCsvBuffer($buffer, $cleanHeaders, $headersParsed);
+                $cleanHeaders = $parsedRecords['headers'];
+                $headersParsed = $parsedRecords['headers_parsed'];
+                $buffer = $parsedRecords['remaining_buffer'];
+                
+                foreach ($parsedRecords['records'] as $record) {
                     $rowsExamined++;
 
-                    // 2. Data line = CSV Row
-                    $stream = fopen('php://memory', 'r+');
-                    fwrite($stream, $line);
-                    rewind($stream);
-                    $row = fgetcsv($stream, 0, ',');
-                    fclose($stream);
-
-                    if (!is_array($row) || empty($row)) {
-                        $rowsSkipped++;
-                        $skipReasons['MALFORMED_CSV_ROW'] = ($skipReasons['MALFORMED_CSV_ROW'] ?? 0) + 1;
-                        continue;
-                    }
-
-                    // Align row column counts
-                    $hCount = count($cleanHeaders);
-                    $rCount = count($row);
-                    if ($rCount !== $hCount) {
-                        if ($rCount < $hCount) {
-                            $row = array_pad($row, $hCount, null);
-                        } else {
-                            $row = array_slice($row, 0, $hCount);
-                        }
-                    }
-
-                    $record = array_combine($cleanHeaders, $row);
-                    if (!$record || empty($record['product_name'] ?? $record['title'] ?? null)) {
-                        $rowsSkipped++;
-                        $skipReasons['MISSING_PRODUCT_NAME'] = ($skipReasons['MISSING_PRODUCT_NAME'] ?? 0) + 1;
-                        continue;
-                    }
-
-                    // Market currency compatibility filter (e.g. GB expects GBP, DE expects EUR)
+                    // Market currency compatibility filter
                     if ($expectedCurrency && !empty($record['currency'])) {
                         $recCurrency = strtoupper(trim((string) $record['currency']));
                         if ($recCurrency !== $expectedCurrency) {
@@ -468,6 +455,41 @@ class AwinDatafeedService
                 }
             }
 
+            // Process any remaining buffer content
+            if ($headersParsed && $buffer !== '') {
+                $parsedRecords = $this->parseCsvBuffer($buffer, $cleanHeaders, true, true);
+                foreach ($parsedRecords['records'] as $record) {
+                    $rowsExamined++;
+                    if (!empty($searchTerms)) {
+                        $haystack = strtolower(
+                            ($record['product_name'] ?? '') . ' ' .
+                            ($record['brand_name'] ?? '') . ' ' .
+                            ($record['merchant_category'] ?? '') . ' ' .
+                            ($record['category_name'] ?? '') . ' ' .
+                            ($record['keywords'] ?? '') . ' ' .
+                            ($record['model_number'] ?? '') . ' ' .
+                            ($record['mpn'] ?? '') . ' ' .
+                            ($record['description'] ?? '')
+                        );
+                        $allMatch = true;
+                        foreach ($searchTerms as $term) {
+                            if (!str_contains($haystack, $term)) {
+                                $allMatch = false;
+                                break;
+                            }
+                        }
+                        if (!$allMatch) {
+                            $rowsSkipped++;
+                            continue;
+                        }
+                    }
+                    $records[] = $record;
+                    if (count($records) >= $limit) {
+                        break;
+                    }
+                }
+            }
+
             $body->close();
             $elapsed = (int) round((microtime(true) - $t0) * 1000);
 
@@ -486,6 +508,7 @@ class AwinDatafeedService
                 'ttfb_ms' => $ttfb,
                 'error_code' => null,
                 'error' => null,
+                'feed_type' => $feedType,
             ];
         } catch (ConnectException $ce) {
             $elapsed = (int) round((microtime(true) - $t0) * 1000);
@@ -500,6 +523,7 @@ class AwinDatafeedService
                 'ttfb_ms' => 0,
                 'error_code' => 'connection_timeout',
                 'error' => 'Connection timeout: Could not connect to Awin feed server within timeout.',
+                'feed_type' => $feedType,
             ];
         } catch (RequestException $re) {
             $elapsed = (int) round((microtime(true) - $t0) * 1000);
@@ -514,7 +538,8 @@ class AwinDatafeedService
                 'latency_ms' => $elapsed,
                 'ttfb_ms' => 0,
                 'error_code' => $this->classifyHttpStatus($status),
-                'error' => "Request failure (HTTP {$status}): " . $re->getMessage(),
+                'error' => "Request failure (HTTP {$status}): " . $this->sanitize($re->getMessage()),
+                'feed_type' => $feedType,
             ];
         } catch (Throwable $e) {
             $elapsed = (int) round((microtime(true) - $t0) * 1000);
@@ -528,9 +553,142 @@ class AwinDatafeedService
                 'latency_ms' => $elapsed,
                 'ttfb_ms' => 0,
                 'error_code' => 'stream_error',
-                'error' => "Datafeed streaming exception: " . $e->getMessage(),
+                'error' => "Datafeed streaming exception: " . $this->sanitize($e->getMessage()),
+                'feed_type' => $feedType,
             ];
         }
+    }
+
+    /**
+     * Parse CSV buffer handling quoted fields with embedded newlines.
+     * Uses a state machine to properly handle RFC 4180 CSV format.
+     *
+     * @return array{
+     *   headers: array,
+     *   headers_parsed: bool,
+     *   records: array<int, array<string, mixed>>,
+     *   remaining_buffer: string
+     * }
+     */
+    protected function parseCsvBuffer(
+        string &$buffer,
+        array &$cleanHeaders,
+        bool &$headersParsed,
+        bool $forceComplete = false
+    ): array {
+        $records = [];
+
+        while (true) {
+            $record = $this->extractCsvRecord($buffer, $forceComplete);
+            if ($record === null) {
+                break; // Incomplete record, wait for more data
+            }
+
+            [$line, $consumed] = $record;
+            $buffer = substr($buffer, $consumed);
+
+            if (!$headersParsed) {
+                // First line = CSV Header
+                $stream = fopen('php://memory', 'r+');
+                fwrite($stream, $line);
+                rewind($stream);
+                $rawH = fgetcsv($stream, 0, ',');
+                fclose($stream);
+
+                if (!empty($rawH) && is_array($rawH)) {
+                    $cleanHeaders = array_map(function ($h) {
+                        return trim(str_replace(["\xEF\xBB\xBF", '"', "'"], '', (string) $h));
+                    }, $rawH);
+                    $headersParsed = true;
+                }
+                continue;
+            }
+
+            // Data line = CSV Row
+            $stream = fopen('php://memory', 'r+');
+            fwrite($stream, $line);
+            rewind($stream);
+            $row = fgetcsv($stream, 0, ',');
+            fclose($stream);
+
+            if (!is_array($row) || empty($row)) {
+                continue;
+            }
+
+            // Align row column counts
+            $hCount = count($cleanHeaders);
+            $rCount = count($row);
+            if ($rCount !== $hCount) {
+                if ($rCount < $hCount) {
+                    $row = array_pad($row, $hCount, null);
+                } else {
+                    $row = array_slice($row, 0, $hCount);
+                }
+            }
+
+            $record = array_combine($cleanHeaders, $row);
+            if (!$record || empty($record['product_name'] ?? $record['title'] ?? null)) {
+                continue;
+            }
+
+            $records[] = $record;
+        }
+
+        return [
+            'headers' => $cleanHeaders,
+            'headers_parsed' => $headersParsed,
+            'records' => $records,
+            'remaining_buffer' => $buffer,
+        ];
+    }
+
+    /**
+     * Extract a single complete CSV record from buffer.
+     * Handles quoted fields with embedded newlines and escaped quotes.
+     *
+     * @return array{line: string, consumed: int}|null
+     */
+    protected function extractCsvRecord(string &$buffer, bool $forceComplete = false): ?array
+    {
+        $len = strlen($buffer);
+        if ($len === 0) {
+            return null;
+        }
+
+        $inQuotes = false;
+        $consumed = 0;
+
+        for ($i = 0; $i < $len; $i++) {
+            $char = $buffer[$i];
+
+            if ($char === '"') {
+                if ($inQuotes) {
+                    // Check for escaped quote ("")
+                    if ($i + 1 < $len && $buffer[$i + 1] === '"') {
+                        $i++; // Skip escaped quote
+                        continue;
+                    }
+                    $inQuotes = false;
+                } else {
+                    $inQuotes = true;
+                }
+            } elseif ($char === "\n" && !$inQuotes) {
+                // Found end of record
+                $line = substr($buffer, 0, $i);
+                $consumed = $i + 1;
+                return [$line, $consumed];
+            }
+        }
+
+        // No complete record found
+        if ($forceComplete && !$inQuotes && $len > 0) {
+            // Force return what we have
+            $line = $buffer;
+            $consumed = $len;
+            return [$line, $consumed];
+        }
+
+        return null;
     }
 
     /**
@@ -576,6 +734,7 @@ class AwinDatafeedService
                 'ttfb_ms' => $ttfb,
                 'error_code' => 'zip_extract_error',
                 'error' => 'Could not open ZIP archive from Awin feed response.',
+                'feed_type' => 'advertiser_specific',
             ];
         }
 
@@ -610,10 +769,11 @@ class AwinDatafeedService
                 'ttfb_ms' => $ttfb,
                 'error_code' => 'zip_empty',
                 'error' => 'No readable CSV file found inside ZIP feed archive.',
+                'feed_type' => 'advertiser_specific',
             ];
         }
 
-        // Parse extracted CSV stream
+        // Parse extracted CSV stream using proper CSV parsing
         $rawHeaders = fgetcsv($csvStream, 0, ',');
         $cleanHeaders = array_map(function ($h) {
             return trim(str_replace(["\xEF\xBB\xBF", '"', "'"], '', (string) $h));
@@ -673,6 +833,7 @@ class AwinDatafeedService
             'ttfb_ms' => $ttfb,
             'error_code' => null,
             'error' => null,
+            'feed_type' => 'advertiser_specific',
         ];
     }
 
@@ -689,5 +850,46 @@ class AwinDatafeedService
             500, 502, 503, 504 => 'server_error',
             default => $status >= 400 ? 'http_error' : 'unknown_error',
         };
+    }
+
+    /**
+     * Sanitize sensitive data from strings before logging/returning.
+     */
+    public function sanitize(string $input): string
+    {
+        $output = $input;
+        foreach (self::SENSITIVE_PATTERNS as $pattern => $replacement) {
+            $output = preg_replace($pattern, $replacement, $output);
+        }
+        return $output;
+    }
+
+    /**
+     * Get diagnostic information about feed configuration.
+     */
+    public function getFeedDiagnostics(AffiliateProvider $provider): array
+    {
+        $providerConfig = $provider->config ?? [];
+        $appConfig = config('services.awin', []);
+
+        $configuredFeedUrl = $providerConfig['datafeed_url'] ?? $appConfig['datafeed_url'] ?? null;
+        $apiKey = $providerConfig['datafeed_api_key'] ?? $appConfig['datafeed_api_key'] ?? null;
+        $apiToken = $providerConfig['api_token'] ?? $appConfig['api_token'] ?? null;
+        $publisherId = $providerConfig['publisher_id'] ?? $appConfig['publisher_id'] ?? null;
+
+        $feedSource = $this->resolveFeedSource($provider);
+
+        return [
+            'configured' => !empty($configuredFeedUrl) || (!empty($apiKey) && !empty($publisherId)),
+            'feed_type' => $feedSource?->getType() ?? 'none',
+            'feed_name' => $feedSource?->getName() ?? 'Not configured',
+            'publisher_id_present' => !empty($publisherId),
+            'api_token_present' => !empty($apiToken),
+            'datafeed_api_key_present' => !empty($apiKey),
+            'datafeed_url_present' => !empty($configuredFeedUrl),
+            'feed_source_config' => $feedSource?->getConfig() ?? [],
+            'supports_publisher_wide' => $feedSource instanceof PublisherWideFeedSource,
+            'shared_feed' => $feedSource?->isShared() ?? false,
+        ];
     }
 }

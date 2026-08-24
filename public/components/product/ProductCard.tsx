@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowRight, Laptop } from 'lucide-react';
+import { productPath } from '@/lib/url';
 
 interface ProductCardProps {
   product: {
@@ -28,7 +29,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, market }) => 
 
   return (
     <Link
-      href={`/${market}/products/${product.slug}`}
+      href={productPath(market, product.slug)}
       className="group bg-white rounded-2xl p-5 flex flex-col justify-between border border-slate-200 shadow-xs hover:shadow-md hover:border-slate-300 transition-all duration-200 relative overflow-hidden"
     >
       <div>

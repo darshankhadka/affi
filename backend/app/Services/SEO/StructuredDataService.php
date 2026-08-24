@@ -12,7 +12,10 @@ class StructuredDataService
      */
     public function generateProductSchema(Product $product, Market $market): array
     {
-        $siteUrl = config('app.url', 'https://arikartech.com');
+        // Use frontend.url for all public-facing canonical product URLs
+        $siteUrl = config('frontend.url', 'https://arikartech.com');
+        // Affiliate click-tracking redirects live on the API domain
+        $apiUrl  = config('app.url', 'https://api.arikartech.com');
         $productUrl = "{$siteUrl}/{$market->code}/products/{$product->slug}";
         
         $images = $product->images->pluck('url')->toArray();
@@ -77,7 +80,7 @@ class StructuredDataService
                                 '@type' => 'Organization',
                                 'name' => $offer->retailer?->name ?? 'Retailer',
                             ],
-                            'url' => "{$siteUrl}/api/out/{$offer->id}",
+                            'url' => "{$apiUrl}/api/v1/affiliates/out/{$offer->id}",
                         ];
                     })->values()->toArray(),
                 ];
@@ -97,7 +100,7 @@ class StructuredDataService
                         '@type' => 'Organization',
                         'name' => $offer->retailer?->name ?? 'Retailer',
                     ],
-                    'url' => "{$siteUrl}/api/out/{$offer->id}",
+                    'url' => "{$apiUrl}/api/v1/affiliates/out/{$offer->id}",
                 ];
             }
         }
@@ -129,7 +132,7 @@ class StructuredDataService
      */
     public function generateWebSiteSchema(Market $market): array
     {
-        $siteUrl = config('app.url', 'https://arikartech.com');
+        $siteUrl = config('frontend.url', 'https://arikartech.com');
         return [
             '@context' => 'https://schema.org',
             '@type' => 'WebSite',

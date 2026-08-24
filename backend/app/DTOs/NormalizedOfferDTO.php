@@ -17,7 +17,8 @@ class NormalizedOfferDTO
         public readonly string $affiliateUrl,
         public readonly ?string $originalUrl = null,
         public readonly ?float $shippingCost = null,
-        public readonly ?string $marketCode = 'us'
+        public readonly ?string $marketCode = 'us',
+        public readonly ?string $merchantId = null
     ) {
     }
 }

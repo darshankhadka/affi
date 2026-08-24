@@ -4,20 +4,13 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// NEXT_PHASE is set by Next.js:
-//   'phase-production-build'   →  next build
-//   'phase-development-server' →  next dev
-//   'phase-export'             →  next export (legacy)
-const isProductionBuild = process.env.NEXT_PHASE === 'phase-production-build';
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // output: 'export' is ONLY applied during `next build` (static site generation).
-  // During `next dev`, omitting it allows dynamic routing to work normally,
-  // preventing the "missing param in generateStaticParams()" 500 error when
-  // visiting real product URLs that aren't pre-declared in generateStaticParams().
-  ...(isProductionBuild ? { output: 'export' } : {}),
+  // Static export for shared hosting / cPanel.
+  // `next build` will generate the complete static site in /out.
+  output: 'export',
 
+  // Keep the project root correctly resolved for tracing/build tooling.
   outputFileTracingRoot: path.join(__dirname, '../'),
 
   // Generate directory-based static routes:
@@ -28,6 +21,8 @@ const nextConfig = {
 
   reactStrictMode: true,
 
+  // Required for static export because Next.js Image Optimization
+  // requires a running Next.js server.
   images: {
     unoptimized: true,
     remotePatterns: [

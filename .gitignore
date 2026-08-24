@@ -1,52 +1,240 @@
-# Environment & Secrets
+# ============================================================
+# ENVIRONMENT & SECRETS
+# ============================================================
+
 .env
-.env.backup
-.env.production
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.sample
+
 *.pem
 *.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
 .certs/
 certs/
+secrets/
+.secrets/
 
-# Dependencies
+
+# ============================================================
+# DEPENDENCIES
+# ============================================================
+
 node_modules/
 backend/vendor/
 vendor/
 
-# Build & Cache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-debug.log*
+
+
+# ============================================================
+# NEXT.JS / REACT / VITE
+# ============================================================
+
 .next/
 out/
 build/
 dist/
 .vite/
 .turbo/
+.cache/
+
 *.tsbuildinfo
 
-# Laravel specific
-backend/storage/*.key
+
+# ============================================================
+# LARAVEL
+# ============================================================
+
+# Laravel runtime/cache
 backend/storage/framework/cache/*
 backend/storage/framework/sessions/*
 backend/storage/framework/testing/*
 backend/storage/framework/views/*
 backend/storage/logs/*
+
+# Laravel bootstrap cache
 backend/bootstrap/cache/*
+
+# Laravel generated encryption keys
+backend/storage/*.key
+
+# Keep Laravel directory placeholders
 !backend/storage/framework/cache/.gitignore
 !backend/storage/framework/sessions/.gitignore
 !backend/storage/framework/testing/.gitignore
 !backend/storage/framework/views/.gitignore
 !backend/storage/logs/.gitignore
 !backend/bootstrap/cache/.gitignore
+backend/backend.zip
 
-# Testing & Coverage
-coverage/
+# Laravel local runtime files
+backend/storage/debugbar/*
+backend/storage/app/temp/*
+backend/storage/app/private/*
+
+# Ignore generated storage symlink if present
+backend/public/storage
+
+
+# ============================================================
+# PHP
+# ============================================================
+
 .phpunit.result.cache
-*.log
+.php-cs-fixer.cache
+.phpstan.cache
 
-# OS & IDE
+*.phar
+
+
+# ============================================================
+# DATABASE / LOCAL DEVELOPMENT
+# ============================================================
+
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Local database dumps
+*.sql
+*.sql.gz
+*.dump
+
+
+# ============================================================
+# LOGS
+# ============================================================
+
+*.log
+logs/
+log/
+
+
+# ============================================================
+# TESTING / COVERAGE
+# ============================================================
+
+coverage/
+.phpunit.cache/
+.phpunit.result.cache
+.nyc_output/
+.jest/
+playwright-report/
+test-results/
+
+
+# ============================================================
+# TEMPORARY / GENERATED FILES
+# ============================================================
+
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+
+
+# ============================================================
+# OS
+# ============================================================
+
 .DS_Store
+.DS_Store?
+._*
+
 Thumbs.db
+Thumbs.db:encryptable
+
+ehthumbs.db
+Desktop.ini
+
+
+# ============================================================
+# IDE / EDITORS
+# ============================================================
+
 .idea/
 .vscode/
+
 *.swp
 *.swo
+*.swn
+
+*.iml
+*.ipr
+*.iws
+
+.history/
+.project
+.settings/
+
+
+# ============================================================
+# MAC / LINUX
+# ============================================================
+
+.Trashes
+.fseventsd
+.Spotlight-V100
+
+*~
+.nfs*
+
+
+# ============================================================
+# DOCKER
+# ============================================================
+
+docker-compose.override.yml
+docker-compose.local.yml
+
+
+# ============================================================
+# TURBO / MONOREPO
+# ============================================================
+
+.turbo/
+
+
+# ============================================================
+# GENERATED DOCUMENTATION / REPORTS
+# ============================================================
+
+# Uncomment these if reports should NOT be committed:
+# reports/
+# *.pdf
+
+
+# ============================================================
+# LOCAL DEVELOPMENT SCRIPTS / CONFIG
+# ============================================================
+
+*.local
+*.local.json
+
+# But keep example configuration files
+!.example
+!.example.*
+!.env.example
+!.env.sample

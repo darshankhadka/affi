@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
+import { productPath } from '@/lib/url';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SlidersHorizontal, ArrowRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -87,7 +88,7 @@ export const CompareClient: React.FC<CompareClientProps> = ({ market }) => {
                 </div>
               )}
               <Link
-                href={`/${market}/products/${p.slug}`}
+                href={productPath(market, p.slug)}
                 className="inline-flex items-center gap-1 text-xs text-emerald-700 font-semibold hover:underline"
               >
                 View Full Deals <ArrowRight className="w-3 h-3" />

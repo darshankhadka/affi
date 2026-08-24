@@ -37,7 +37,7 @@ class AwinProvider extends BaseAffiliateProvider
         'ie' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
         'pt' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
         'fi' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
-        'se' => ['currency' => 'EUR', 'domain' => 'awin1.com'],
+        'se' => ['currency' => 'SEK', 'domain' => 'awin1.com'],
         'dk' => ['currency' => 'DKK', 'domain' => 'awin1.com'],
         'pl' => ['currency' => 'PLN', 'domain' => 'awin1.com'],
         'cz' => ['currency' => 'CZK', 'domain' => 'awin1.com'],
@@ -221,7 +221,14 @@ class AwinProvider extends BaseAffiliateProvider
     }
 
     /**
-     * Ingest products from real Awin Create-a-Feed / Product Datafeeds for joined programmes
+     * Ingest products from Awin feeds for joined programmes.
+     *
+     * Supports two feed strategies:
+     *  - Architecture A (publisher-wide): configured AWIN_DATAFEED_URL.
+     *    The feed is downloaded EXACTLY ONCE, streamed, and every record's own
+     *    merchant/programme is identified from the feed row (no per-advertiser HTTP).
+     *  - Architecture B (advertiser-specific): /mid/{advertiserId} feeds built from
+     *    AWIN_DATAFEED_API_KEY. One per joined programme (only when no publisher-wide feed).
      *
      * @return NormalizedProductDTO[]
      * @throws RuntimeException on API/network failure
@@ -233,13 +240,94 @@ class AwinProvider extends BaseAffiliateProvider
             throw new RuntimeException("Awin provider is disconnected or missing credentials.");
         }
 
+        $feedSource = $this->datafeedService->resolveFeedSource($provider, null, $market);
+        if (!$feedSource) {
+            throw new RuntimeException(
+                "Awin feed is not configured. Set AWIN_DATAFEED_URL (publisher-wide) or AWIN_DATAFEED_API_KEY (advertiser feeds)."
+            );
+        }
+
+        // Architecture A: publisher-wide, shared feed -> download once.
+        if ($feedSource->isShared()) {
+            return $this->searchWithSharedFeed($feedSource, $keywords, $market, $limit);
+        }
+
+        // Architecture B: per-advertiser feeds (only when no publisher-wide feed is configured).
+        return $this->searchWithAdvertiserFeeds($provider, $feedSource, $keywords, $market, $limit);
+    }
+
+    /**
+     * Architecture A — download the publisher-wide feed a single time and normalize every
+     * relevant record. Merchant/programme identity comes from each feed row, not from a
+     * pre-filtered programme list, so the same download serves every joined advertiser.
+     */
+    protected function searchWithSharedFeed(
+        \App\Services\Affiliate\Feeds\FeedSource $feedSource,
+        string $keywords,
+        Market $market,
+        int $limit
+    ): array {
+        $streamResult = $this->datafeedService->streamFeedRecords($feedSource, $keywords, $market, $limit);
+
+        if (!$streamResult['success']) {
+            $status = $streamResult['http_status'];
+            // Do NOT treat 401/403/404/5xx as an empty catalog — surface the failure.
+            throw new RuntimeException(
+                "Awin publisher-wide datafeed download failed (HTTP {$status}): " . ($streamResult['error'] ?? 'unknown error')
+            );
+        }
+
+        $acceptedAdvertiserIds = $feedSource->getAdvertiserIds();
+        $results = [];
+        $collectedCount = 0;
+
+        foreach ($streamResult['records'] as $record) {
+            // Optional scope to a subset of joined advertisers if explicitly configured.
+            if (!empty($acceptedAdvertiserIds)) {
+                $rowAdvertiser = (int) ($record['merchant_id'] ?? 0);
+                if (!in_array($rowAdvertiser, $acceptedAdvertiserIds, true)) {
+                    continue;
+                }
+            }
+
+            if (empty($record['merchant_id'])) {
+                $record['merchant_id'] = (string) ($record['merchant_id'] ?? $feedSource->getAdvertiserIds()[0] ?? 0);
+            }
+            if (empty($record['merchant_name'])) {
+                $record['merchant_name'] = $record['merchant_name'] ?? 'Awin Partner';
+            }
+
+            $dto = $this->normalizeAwinItem($record, $market);
+            if ($dto) {
+                $results[] = $dto;
+                $collectedCount++;
+                if ($collectedCount >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Architecture B — one /mid/{advertiserId} feed per joined programme.
+     * Only reached when no publisher-wide feed URL is configured.
+     */
+    protected function searchWithAdvertiserFeeds(
+        AffiliateProvider $provider,
+        \App\Services\Affiliate\Feeds\FeedSource $templateSource,
+        string $keywords,
+        Market $market,
+        int $limit
+    ): array {
         $programmes = $this->getJoinedProgrammes($provider);
         if (empty($programmes)) {
             Log::info("Awin search: No joined programmes found for publisher account.");
             return [];
         }
 
-        // Filter programmes matching target market country code if specified
+        // Filter programmes matching target market country code if specified.
         $targetIso2 = strtoupper($market->code === 'uk' ? 'GB' : $market->code);
         $matchingProgrammes = array_filter($programmes, function ($p) use ($targetIso2) {
             $pCountry = strtoupper($p['primaryRegion']['countryCode'] ?? '');
@@ -250,9 +338,17 @@ class AwinProvider extends BaseAffiliateProvider
             $matchingProgrammes = $programmes;
         }
 
+        $matchingIds = array_column($matchingProgrammes, 'id');
+        $feeds = $this->datafeedService->resolveAdvertiserFeedSources($provider, $matchingIds, $market);
+
+        if (empty($feeds)) {
+            throw new RuntimeException(
+                "Awin advertiser datafeeds could not be built. Verify AWIN_DATAFEED_API_KEY is configured."
+            );
+        }
+
         $results = [];
         $collectedCount = 0;
-        $attemptedFeeds = 0;
         $failedFeedErrors = [];
 
         foreach ($matchingProgrammes as $prog) {
@@ -260,20 +356,13 @@ class AwinProvider extends BaseAffiliateProvider
                 break;
             }
 
-            $attemptedFeeds++;
-            $feedUrl = $this->datafeedService->getFeedUrl($prog['id'], $market);
-
+            $feedUrl = $this->datafeedService->resolveFeedSource($provider, (int) $prog['id'], $market)?->getUrl();
             if (empty($feedUrl)) {
-                $failedFeedErrors[] = "Advertiser {$prog['id']} ({$prog['name']}): Datafeed URL is not configured (set AWIN_DATAFEED_URL or AWIN_DATAFEED_API_KEY)";
+                $failedFeedErrors[] = "Advertiser {$prog['id']} ({$prog['name']}): Datafeed URL is not configured (set AWIN_DATAFEED_API_KEY)";
                 continue;
             }
 
-            $streamResult = $this->datafeedService->streamFeedRecords(
-                $feedUrl,
-                $keywords,
-                $market,
-                $limit - $collectedCount
-            );
+            $streamResult = $this->datafeedService->streamFeedRecords($feedUrl, $keywords, $market, $limit - $collectedCount);
 
             if (!$streamResult['success']) {
                 $status = $streamResult['http_status'];
@@ -306,7 +395,7 @@ class AwinProvider extends BaseAffiliateProvider
         }
 
         if (empty($results) && !empty($failedFeedErrors) && $collectedCount === 0) {
-            throw new RuntimeException("Awin Datafeed unavailable for joined programmes. " . implode('; ', $failedFeedErrors) . ". Please verify AWIN_DATAFEED_URL / AWIN_DATAFEED_API_KEY in .env.");
+            throw new RuntimeException("Awin Datafeed unavailable for joined programmes. " . implode('; ', $failedFeedErrors) . ".");
         }
 
         return $results;
@@ -441,7 +530,8 @@ class AwinProvider extends BaseAffiliateProvider
             affiliateUrl: $affiliateUrl,
             originalUrl: $originalUrl,
             shippingCost: $deliveryCost,
-            marketCode: $market->code
+            marketCode: $market->code,
+            merchantId: isset($item['merchant_id']) ? (string) $item['merchant_id'] : null
         );
 
         // Images (handle single and comma-separated image lists safely)
@@ -554,5 +644,13 @@ class AwinProvider extends BaseAffiliateProvider
     public function getSupportedCategories(): array
     {
         return ['Computers', 'Laptops', 'PC Components', 'Monitors', 'Peripherals', 'Smartphones', 'Audio', 'TVs', 'Electronic Accessories'];
+    }
+
+    /**
+     * Safe diagnostic describing the resolved feed strategy (no secrets).
+     */
+    public function getFeedDiagnostics(\App\Models\AffiliateProvider $provider): array
+    {
+        return $this->datafeedService->getFeedDiagnostics($provider);
     }
 }
