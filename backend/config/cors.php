@@ -18,20 +18,27 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
+        // Production
         'https://arikartech.com',
         'https://www.arikartech.com',
         'https://admin.arikartech.com',
         'https://api.arikartech.com',
+        // Local dev — HTTP (legacy)
         'http://localhost:3000',
         'http://localhost:5173',
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173',
+        // Local dev — HTTPS (mkcert)
+        'https://localhost:3000',
+        'https://localhost:5173',
+        'https://127.0.0.1:3000',
+        'https://127.0.0.1:5173',
     ],
 
     'allowed_origins_patterns' => [
         '#^https://.*\.arikartech\.com$#',
-        '#^http://localhost(:\d+)?$#',
-        '#^http://127\.0\.0\.1(:\d+)?$#',
+        '#^https?://localhost(:\d+)?$#',
+        '#^https?://127\.0\.0\.1(:\d+)?$#',
     ],
 
     'allowed_headers' => ['*'],

@@ -6,6 +6,8 @@
 .env.*.local
 *.pem
 *.key
+.certs/
+certs/
 
 # Dependencies
 node_modules/
