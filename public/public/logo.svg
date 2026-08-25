@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 100" width="250" height="100" fill="none">
+  <defs>
+    <linearGradient id="logo-grad-primary" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="50%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+    <linearGradient id="logo-grad-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+    <filter id="logo-shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#059669" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Brand Mark Icon (64x64 on left) -->
+  <g transform="translate(16, 18)">
+    <!-- Squircle Background with Drop Shadow -->
+    <rect width="64" height="64" rx="16" fill="url(#logo-grad-primary)" filter="url(#logo-shadow)"/>
+    
+    <!-- Modern Tech Polygonal Apex Monogram -->
+    <path d="M32 14 L49 48 L41 48 L36.5 39 L27.5 39 L23 48 L15 48 Z M32 23 L29 33 L35 33 Z" fill="#ffffff" fill-rule="evenodd"/>
+    <!-- Subtle Dynamic Tech Node / Spark Accent -->
+    <circle cx="48" cy="18" r="4" fill="url(#logo-grad-accent)"/>
+    <circle cx="48" cy="18" r="2" fill="#ffffff"/>
+  </g>
+
+  <!-- Brand Typography -->
+  <!-- Primary Wordmark -->
+  <text x="94" y="52" font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="900" letter-spacing="1.5" fill="#0f172a">
+    ARIKAR<tspan fill="#059669">TECH</tspan>
+  </text>
+
+  <!-- Subtitle Tagline -->
+  <text x="95" y="70" font-family="-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif" font-size="8.5" font-weight="700" letter-spacing="2.8" fill="#64748b">
+    GLOBAL TECH ENGINE
+  </text>
+</svg>

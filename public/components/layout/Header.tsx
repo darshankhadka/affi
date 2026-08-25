@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Search, ChevronDown, SlidersHorizontal, Check } from 'lucide-react';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import {
   CANONICAL_MARKETS,
   CANONICAL_MARKET_GROUPS,
@@ -115,15 +116,9 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       {/* Top bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-6">
-        {/* Brand Logo */}
-        <Link href={`/${currentMarket}`} className="flex items-center gap-3 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center font-black text-white shadow-md shadow-emerald-500/20">
-            A
-          </div>
-          <div>
-            <span className="font-extrabold text-lg tracking-wider text-slate-900 uppercase">ARIKARTECH</span>
-            <span className="text-[10px] text-emerald-600 block -mt-1 font-mono font-bold tracking-tight">GLOBAL TECH ENGINE</span>
-          </div>
+        {/* Real Brand Logo (250x100 source asset) */}
+        <Link href={`/${currentMarket}`} className="flex items-center shrink-0 hover:opacity-95 transition-opacity" aria-label="ARIKARTECH Home">
+          <BrandLogo className="h-10 w-auto" width={250} height={100} priority />
         </Link>
 
         {/* Global Search Bar */}

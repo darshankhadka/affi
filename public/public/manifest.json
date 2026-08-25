@@ -1,16 +1,23 @@
 {
   "name": "ARIKARTECH",
   "short_name": "ARIKARTECH",
-  "description": "Global Technology Product Intelligence & Price Comparison",
+  "description": "Global Technology Discovery & Real-Time Price Comparison Engine",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
+  "background_color": "#f8fafc",
   "theme_color": "#059669",
   "icons": [
     {
       "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
+      "sizes": "100x100",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "250x100",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

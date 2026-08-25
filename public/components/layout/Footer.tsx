@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 interface FooterProps {
   currentMarket: string;
@@ -12,12 +13,9 @@ export const Footer: React.FC<FooterProps> = ({ currentMarket }) => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           {/* Brand Col */}
           <div className="space-y-3 md:col-span-2">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center font-black text-white">
-                A
-              </div>
-              <span className="font-extrabold text-base tracking-wider text-slate-900 uppercase">ARIKARTECH</span>
-            </div>
+            <Link href={`/${currentMarket}`} className="inline-block hover:opacity-95 transition-opacity" aria-label="ARIKARTECH Home">
+              <BrandLogo className="h-9 w-auto" width={250} height={100} priority={false} />
+            </Link>
             <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
               Global technology discovery, price-comparison, and hardware deal platform. We index and compare authorized tech retailers across 35 international markets in real-time.
             </p>

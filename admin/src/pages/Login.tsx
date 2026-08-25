@@ -40,12 +40,13 @@ export const Login: React.FC = () => {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 font-black text-2xl text-slate-950 mb-4 shadow-xl shadow-emerald-500/20">
-            A
-          </div>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">ARIKARTECH</h1>
-          <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-mono">Control Hub Authorization</p>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <img
+            src="/logo.svg"
+            alt="ARIKARTECH - Admin Control Center"
+            className="h-12 w-auto object-contain mb-2"
+            style={{ aspectRatio: '250 / 100' }}
+          />
         </div>
 
         <Card className="border-slate-800/80 bg-slate-900/60 p-8 shadow-2xl">

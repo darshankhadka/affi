@@ -106,14 +106,13 @@ export const Sidebar: React.FC = () => {
   return (
     <aside className="w-64 shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col h-screen overflow-y-auto">
       {/* Brand Header */}
-      <div className="p-5 border-b border-slate-800 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-black text-slate-950 shadow-lg shadow-emerald-500/20">
-          A
-        </div>
-        <div>
-          <h1 className="font-bold text-sm tracking-wider text-slate-100 uppercase">ARIKARTECH</h1>
-          <p className="text-[10px] text-emerald-400 font-mono font-medium">CONTROL HUB</p>
-        </div>
+      <div className="p-4 border-b border-slate-800 flex items-center">
+        <img
+          src="/logo.svg"
+          alt="ARIKARTECH - Admin Control Center"
+          className="h-9 w-auto object-contain"
+          style={{ aspectRatio: '250 / 100' }}
+        />
       </div>
 
       {/* Navigation Links */}
