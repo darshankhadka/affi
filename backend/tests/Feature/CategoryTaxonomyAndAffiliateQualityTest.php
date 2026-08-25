@@ -26,33 +26,62 @@ class CategoryTaxonomyAndAffiliateQualityTest extends TestCase
         $this->artisan('system:init-foundation');
     }
 
-    public function test_category_classifier_differentiates_laptops_from_bags_and_accessories(): void
+    public function test_category_classifier_enforces_strict_20_categories_and_excludes_non_tech(): void
     {
         $classifier = new CategoryClassifierService();
         $classifier->ensureTaxonomy();
 
+        // 1. Genuine Laptops -> Laptops
         $laptop = $classifier->classify(['name' => 'Lenovo ThinkPad T14 Gen 5 Laptop Intel Ultra 7']);
         $this->assertEquals('laptops', $laptop['category_slug']);
+        $this->assertFalse($laptop['is_excluded']);
         $this->assertGreaterThanOrEqual(0.90, $laptop['confidence']);
 
+        // 2. Gaming Laptops -> Gaming Laptops
+        $gamingLaptop = $classifier->classify(['name' => 'ASUS ROG Strix G16 Gaming Laptop RTX 4070']);
+        $this->assertEquals('gaming-laptops', $gamingLaptop['category_slug']);
+        $this->assertFalse($gamingLaptop['is_excluded']);
+
+        // 3. MacBooks -> MacBooks
+        $macbook = $classifier->classify(['name' => 'Apple MacBook Pro 14 M3 Pro 18GB 512GB']);
+        $this->assertEquals('macbooks', $macbook['category_slug']);
+        $this->assertFalse($macbook['is_excluded']);
+
+        // 4. Laptop Bags & Sleeves -> EXCLUDED (Never classify as Laptops!)
         $bag = $classifier->classify(['name' => '15.6 Inch Polyester Laptop Sleeve Bag for Men']);
-        $this->assertEquals('laptop-bags-cases', $bag['category_slug']);
-        $this->assertGreaterThanOrEqual(0.90, $bag['confidence']);
+        $this->assertTrue($bag['is_excluded']);
+        $this->assertNull($bag['category_id']);
 
-        $cooler = $classifier->classify(['name' => 'Laptop Stand Cooling Pad RGB Fans']);
-        $this->assertEquals('laptop-accessories', $cooler['category_slug']);
-        $this->assertGreaterThanOrEqual(0.90, $cooler['confidence']);
-
-        $screen = $classifier->classify(['name' => 'NothingProjector 100-inch ALR Motorized Floor Rising Screen']);
-        $this->assertEquals('projectors-screens', $screen['category_slug']);
-        $this->assertGreaterThanOrEqual(0.90, $screen['confidence']);
-
+        // 5. Tyres -> EXCLUDED
         $tyre = $classifier->classify(['name' => 'Pirelli Diablo Rosso III ( 190/55 ZR17 TL (75W) Baghjul, M/C )']);
-        $this->assertEquals('tyres-automotive', $tyre['category_slug']);
-        $this->assertGreaterThanOrEqual(0.90, $tyre['confidence']);
+        $this->assertTrue($tyre['is_excluded']);
+        $this->assertNull($tyre['category_id']);
+
+        // 6. Beauty / Shampoos -> EXCLUDED
+        $shampoo = $classifier->classify(['name' => 'Dove Nourishing Oil Care Shampoo 250ml']);
+        $this->assertTrue($shampoo['is_excluded']);
+        $this->assertNull($shampoo['category_id']);
+
+        // 7. Cleaning -> EXCLUDED
+        $mop = $classifier->classify(['name' => 'Vileda Glitzi Plus Skuresvampe 3 stk']);
+        $this->assertTrue($mop['is_excluded']);
+        $this->assertNull($mop['category_id']);
+
+        // 8. 3D Printers & Laser Engravers -> EXCLUDED
+        $laser = $classifier->classify(['name' => 'SCULPFUN S30 Pro Max 20W Laser Engraver Machine']);
+        $this->assertTrue($laser['is_excluded']);
+        $this->assertNull($laser['category_id']);
+
+        // 9. Projectors -> EXCLUDED
+        $proj = $classifier->classify(['name' => 'NothingProjector 100-inch ALR Motorized Floor Rising Screen']);
+        $this->assertTrue($proj['is_excluded']);
+        $this->assertNull($proj['category_id']);
+
+        // 10. Exactly 20 Active Canonical Categories
+        $this->assertEquals(20, Category::where('is_active', true)->count());
     }
 
-    public function test_category_endpoint_filters_strictly_by_category(): void
+    public function test_category_endpoint_filters_strictly_by_category_and_excludes_non_tech(): void
     {
         $classifier = new CategoryClassifierService();
         $classifier->ensureTaxonomy();
@@ -69,8 +98,8 @@ class CategoryTaxonomyAndAffiliateQualityTest extends TestCase
         ]);
 
         $laptopCat = Category::where('slug', 'laptops')->first();
-        $bagCat = Category::where('slug', 'laptop-bags-cases')->first();
 
+        // 1. Published Tech Product
         $laptopProduct = Product::create([
             'brand_id' => $brand->id,
             'category_id' => $laptopCat->id,
@@ -79,12 +108,13 @@ class CategoryTaxonomyAndAffiliateQualityTest extends TestCase
             'status' => 'published',
         ]);
 
+        // 2. Excluded Product
         $bagProduct = Product::create([
             'brand_id' => $brand->id,
-            'category_id' => $bagCat->id,
+            'category_id' => null,
             'name' => 'Polyester Laptop Backpack Case',
             'slug' => 'polyester-laptop-backpack-case',
-            'status' => 'published',
+            'status' => 'excluded',
         ]);
 
         Offer::create([
@@ -125,6 +155,10 @@ class CategoryTaxonomyAndAffiliateQualityTest extends TestCase
         $catResponse->assertStatus(200);
         $this->assertCount(1, $catResponse->json('data'));
         $this->assertEquals('Real Pro Laptop 15.6 Inch', $catResponse->json('data.0.name'));
+
+        // Excluded products are never accessible publicly
+        $excludedShow = $this->getJson('/api/v1/products/polyester-laptop-backpack-case');
+        $excludedShow->assertStatus(404);
     }
 
     public function test_affiliate_redirect_security_and_status_codes(): void

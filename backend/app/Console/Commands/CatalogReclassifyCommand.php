@@ -15,16 +15,15 @@ class CatalogReclassifyCommand extends Command
                             {--batch-size=100 : Number of products to process per batch}
                             {--force : Force execution without confirmation}';
 
-    protected $description = 'Deterministically reclassify products into accurate taxonomy categories with confidence scoring';
+    protected $description = 'Deterministically reclassify products into the 20 approved taxonomy categories and exclude non-tech products';
 
     public function handle(CategoryClassifierService $classifier): int
     {
         $dryRun = $this->option('dry-run');
         $batchSize = max(1, (int) $this->option('batch-size'));
-        $force = $this->option('force');
 
         $this->info("==================================================================");
-        $this->info("ARIKARTECH — CATALOG RECLASSIFICATION ENGINE");
+        $this->info("ARIKARTECH — STRICT 20-CATEGORY RECLASSIFICATION ENGINE");
         $this->info("MODE: " . ($dryRun ? "SIMULATION (DRY-RUN)" : "LIVE EXECUTION"));
         $this->info("==================================================================\n");
 
@@ -33,17 +32,10 @@ class CatalogReclassifyCommand extends Command
         $totalProducts = Product::count();
         $this->info("Total products to evaluate: {$totalProducts}\n");
 
-        $changes = [];
-        $confidenceStats = [
-            'high' => 0,       // 0.90 - 1.00
-            'acceptable' => 0, // 0.75 - 0.89
-            'review' => 0,     // 0.50 - 0.74
-            'low' => 0,        // < 0.50
-        ];
-        $totalChanged = 0;
-        $totalUnchanged = 0;
-
-        $categoriesMap = Category::pluck('name', 'id')->toArray();
+        $publishedCount = 0;
+        $excludedCount = 0;
+        $categoryBreakdown = [];
+        $exclusionBreakdown = [];
 
         $bar = $this->output->createProgressBar($totalProducts);
         $bar->start();
@@ -51,11 +43,10 @@ class CatalogReclassifyCommand extends Command
         Product::with(['brand', 'category'])->chunkById($batchSize, function ($products) use (
             $classifier,
             $dryRun,
-            &$changes,
-            &$confidenceStats,
-            &$totalChanged,
-            &$totalUnchanged,
-            $categoriesMap,
+            &$publishedCount,
+            &$excludedCount,
+            &$categoryBreakdown,
+            &$exclusionBreakdown,
             $bar
         ) {
             foreach ($products as $product) {
@@ -64,49 +55,41 @@ class CatalogReclassifyCommand extends Command
                     'description' => $product->description ?? $product->short_description,
                     'brand_name' => $product->brand?->name,
                     'model_number' => $product->model_number,
+                    'merchant_category' => $product->merchant_category,
                 ]);
 
-                $newCatId = $classification['category_id'];
-                $confidence = $classification['confidence'];
-                $oldCatId = $product->category_id;
-                $oldCatName = $categoriesMap[$oldCatId] ?? 'None';
-                $newCatName = $classification['category_name'];
-
-                if ($confidence >= 0.90) {
-                    $confidenceStats['high']++;
-                } elseif ($confidence >= 0.75) {
-                    $confidenceStats['acceptable']++;
-                } elseif ($confidence >= 0.50) {
-                    $confidenceStats['review']++;
-                } else {
-                    $confidenceStats['low']++;
-                }
-
-                if ($oldCatId !== $newCatId) {
-                    $totalChanged++;
-                    $changeKey = "{$oldCatName} → {$newCatName}";
-                    $changes[$changeKey] = ($changes[$changeKey] ?? 0) + 1;
+                if ($classification['is_excluded']) {
+                    $excludedCount++;
+                    $source = $classification['source'];
+                    $exclusionBreakdown[$source] = ($exclusionBreakdown[$source] ?? 0) + 1;
 
                     if (!$dryRun) {
                         DB::table('products')
                             ->where('id', $product->id)
                             ->update([
-                                'category_id' => $newCatId,
-                                'category_confidence' => $confidence,
-                                'category_source' => $classification['source'],
+                                'category_id' => null,
+                                'status' => 'excluded',
+                                'category_confidence' => 0.0,
+                                'category_source' => $source,
                                 'taxonomy_version' => $classification['taxonomy_version'],
                                 'updated_at' => now(),
                             ]);
                     }
                 } else {
-                    $totalUnchanged++;
-                    if (!$dryRun && ($product->category_confidence === null || $product->category_source === null)) {
+                    $publishedCount++;
+                    $catSlug = $classification['category_slug'];
+                    $categoryBreakdown[$catSlug] = ($categoryBreakdown[$catSlug] ?? 0) + 1;
+
+                    if (!$dryRun) {
                         DB::table('products')
                             ->where('id', $product->id)
                             ->update([
-                                'category_confidence' => $confidence,
+                                'category_id' => $classification['category_id'],
+                                'status' => 'published',
+                                'category_confidence' => $classification['confidence'],
                                 'category_source' => $classification['source'],
                                 'taxonomy_version' => $classification['taxonomy_version'],
+                                'updated_at' => now(),
                             ]);
                     }
                 }
@@ -118,38 +101,41 @@ class CatalogReclassifyCommand extends Command
         $bar->finish();
         $this->newLine(2);
 
-        $this->info("==================================================================");
-        $this->info("RECLASSIFICATION REPORT");
-        $this->info("==================================================================");
-        $this->line("Products examined: {$totalProducts}");
-        $this->line("Total changed:     {$totalChanged}");
-        $this->line("Total unchanged:   {$totalUnchanged}");
-        $this->line("Errors:            0\n");
-
-        $this->info("--- CONFIDENCE DISTRIBUTION ---");
+        $this->info("--- RECLASSIFICATION SUMMARY ---");
         $this->table(
-            ['Confidence Level', 'Score Range', 'Product Count', 'Percentage'],
+            ['Metric', 'Count'],
             [
-                ['High Confidence', '0.90 – 1.00', $confidenceStats['high'], round(($confidenceStats['high'] / max(1, $totalProducts)) * 100, 1) . '%'],
-                ['Acceptable', '0.75 – 0.89', $confidenceStats['acceptable'], round(($confidenceStats['acceptable'] / max(1, $totalProducts)) * 100, 1) . '%'],
-                ['Review / Moderate', '0.50 – 0.74', $confidenceStats['review'], round(($confidenceStats['review'] / max(1, $totalProducts)) * 100, 1) . '%'],
-                ['Low / Fallback', '< 0.50', $confidenceStats['low'], round(($confidenceStats['low'] / max(1, $totalProducts)) * 100, 1) . '%'],
+                ['Total Products Evaluated', $totalProducts],
+                ['Published Tech Products (in 20 Categories)', $publishedCount],
+                ['Excluded Non-Tech Products (Preserved in DB)', $excludedCount],
             ]
         );
 
-        $this->info("\n--- TAXONOMY REASSIGNMENTS ---");
-        arsort($changes);
-        $changeRows = [];
-        foreach ($changes as $transition => $count) {
-            $changeRows[] = [$transition, $count];
+        $this->info("\n--- APPROVED 20-CATEGORY BREAKDOWN ---");
+        $approvedCategories = Category::where('is_active', true)->orderBy('display_order')->get();
+        $catRows = [];
+        foreach ($approvedCategories as $cat) {
+            $catRows[] = [
+                $cat->id,
+                $cat->name,
+                $cat->slug,
+                $categoryBreakdown[$cat->slug] ?? 0,
+            ];
         }
-        $this->table(['Transition (Old Category → New Category)', 'Products Shifted'], $changeRows);
+        $this->table(['ID', 'Category Name', 'Slug', 'Published Count'], $catRows);
 
+        $this->info("\n--- EXCLUSION BREAKDOWN ---");
+        $exRows = [];
+        foreach ($exclusionBreakdown as $source => $count) {
+            $exRows[] = [$source, $count];
+        }
+        $this->table(['Exclusion Rule', 'Product Count'], $exRows);
+
+        $this->newLine();
         if ($dryRun) {
-            $this->warn("\n[DRY RUN COMPLETE] No records were modified in the database.");
-            $this->line("To apply these changes permanently, run: php artisan catalog:reclassify --force");
+            $this->warn("⚠ DRY-RUN COMPLETE: No changes written to database. Run without --dry-run to apply.");
         } else {
-            $this->info("\n✔ [LIVE RECLASSIFICATION COMPLETE] Successfully updated {$totalChanged} products.");
+            $this->info("✔ LIVE RECLASSIFICATION COMPLETE: Database successfully updated.");
         }
 
         return Command::SUCCESS;

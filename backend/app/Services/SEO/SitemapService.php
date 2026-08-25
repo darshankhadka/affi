@@ -43,6 +43,7 @@ class SitemapService
     {
         $siteUrl = config('app.url', 'https://arikartech.com');
         $products = Product::where('status', 'published')
+            ->whereHas('category', fn($q) => $q->where('is_active', true))
             ->select(['id', 'slug', 'updated_at'])
             ->limit(10000)
             ->get();

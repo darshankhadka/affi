@@ -33,7 +33,10 @@ class ProductController extends BaseApiController
                 ->first();
         }
 
-        $query = Product::where('status', 'published');
+        $query = Product::where('status', 'published')
+            ->whereHas('category', function ($q) {
+                $q->where('is_active', true);
+            });
 
         if ($market) {
             $query->whereHas('offers', function ($q) use ($market) {
@@ -151,6 +154,9 @@ class ProductController extends BaseApiController
 
         $product = Product::where('slug', $slug)
             ->where('status', 'published')
+            ->whereHas('category', function ($q) {
+                $q->where('is_active', true);
+            })
             ->with([
                 'brand',
                 'category',
@@ -213,6 +219,9 @@ class ProductController extends BaseApiController
 
         $products = Product::whereIn('slug', $slugs)
             ->where('status', 'published')
+            ->whereHas('category', function ($q) {
+                $q->where('is_active', true);
+            })
             ->with([
                 'brand',
                 'category',

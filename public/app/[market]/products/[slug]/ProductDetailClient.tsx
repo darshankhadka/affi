@@ -234,19 +234,28 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ market
               )}
             </div>
 
-            {/* Primary Action Button */}
+            {/* Primary Action Buttons */}
             {topOffer ? (
-              <div className="pt-2">
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <a
                   href={getOutboundUrl(topOffer.id)}
                   target="_blank"
                   rel="nofollow sponsored noopener"
                   onClick={handleTopOfferClick}
-                  className="w-full py-4 px-6 rounded-xl font-bold text-sm sm:text-base uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                  className="flex-1 py-4 px-6 rounded-xl font-bold text-sm sm:text-base uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
                 >
-                  <span>BUY AT BEST PRICE ({currencySymbol}{Number(topOffer.price).toFixed(2)})</span>
+                  <span>BUY NOW ({currencySymbol}{Number(topOffer.price).toFixed(2)})</span>
                   <ExternalLink className="w-4 h-4" />
                 </a>
+
+                {offers.length > 1 && (
+                  <a
+                    href="#offers"
+                    className="py-4 px-6 rounded-xl font-bold text-xs uppercase tracking-wider bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center gap-2 transition-colors shrink-0"
+                  >
+                    <span>COMPARE {offers.length} OFFERS</span>
+                  </a>
+                )}
               </div>
             ) : null}
 
@@ -270,7 +279,7 @@ export const ProductDetailClient: React.FC<ProductDetailClientProps> = ({ market
       </div>
 
       {/* Main Section: Retailer Price Comparison Table */}
-      <section className="space-y-4 pt-4">
+      <section id="offers" className="space-y-4 pt-4">
         <div className="flex items-center justify-between border-b border-slate-200 pb-4">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">

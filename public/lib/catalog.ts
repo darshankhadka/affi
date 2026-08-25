@@ -1,9 +1,7 @@
 /**
  * ARIKARTECH Canonical Catalog & Taxonomy Constants
  * 
- * Used for zero-dependency static site generation (Next.js static export).
- * Eliminates build-time HTTP requests to the API, ensuring 100% deterministic,
- * offline-capable static HTML/CSS/JS export for shared hosting.
+ * Strict 20-Category technology product classification and 35 canonical markets.
  */
 
 export interface MarketDef {
@@ -24,6 +22,12 @@ export interface CategoryDef {
   slug: string;
   icon: string;
   description?: string;
+  group?: string;
+}
+
+export interface CategoryGroupDef {
+  name: string;
+  categories: CategoryDef[];
 }
 
 export interface BrandDef {
@@ -117,27 +121,65 @@ export const CANONICAL_MARKET_GROUPS: MarketRegionGroup[] = [
   },
 ];
 
+/**
+ * EXACTLY 20 CANONICAL CATEGORIES
+ */
 export const CANONICAL_CATEGORIES: CategoryDef[] = [
-  { name: 'Laptops', slug: 'laptops', icon: 'laptop', description: 'Compare Ultrabooks, MacBooks, business laptops, and creator notebooks.' },
-  { name: 'Gaming Laptops', slug: 'gaming-laptops', icon: 'laptop', description: 'High-performance laptops equipped with RTX and Radeon discrete graphics.' },
-  { name: 'MacBooks', slug: 'macbooks', icon: 'laptop', description: 'Apple MacBook Air and MacBook Pro with M-series Apple Silicon processors.' },
-  { name: 'Desktops & Mini PCs', slug: 'desktops-mini-pcs', icon: 'monitor', description: 'Prebuilt desktop towers, workstations, and compact mini PCs.' },
-  { name: 'Smartphones', slug: 'smartphones', icon: 'smartphone', description: 'Flagship and mid-range Android smartphones and Apple iPhones.' },
-  { name: 'Tablets & iPads', slug: 'tablets-ipads', icon: 'tablet', description: 'Tablets, iPads, and convertible 2-in-1 touchscreen devices.' },
-  { name: 'Smartwatches', slug: 'smartwatches', icon: 'watch', description: 'Smartwatches, fitness bands, and GPS sports watches.' },
-  { name: 'GPUs & Graphics Cards', slug: 'gpus-graphics-cards', icon: 'cpu', description: 'NVIDIA GeForce RTX, AMD Radeon RX, and Intel Arc graphics cards.' },
-  { name: 'CPUs & Processors', slug: 'cpus-processors', icon: 'cpu', description: 'Intel Core and AMD Ryzen desktop and workstation processors.' },
-  { name: 'RAM & Memory', slug: 'ram-memory', icon: 'server', description: 'DDR4 and DDR5 desktop and laptop RAM kits.' },
-  { name: 'SSDs & Storage', slug: 'ssds-storage', icon: 'hard-drive', description: 'NVMe M.2 SSDs, SATA drives, and portable external SSDs.' },
-  { name: 'Motherboards', slug: 'motherboards', icon: 'layers', description: 'Intel and AMD socket motherboards across ATX, Micro-ATX, and Mini-ITX.' },
-  { name: 'Power Supplies & Cases', slug: 'power-supplies-cases', icon: 'box', description: 'Modular power supply units (PSUs) and PC enclosures.' },
-  { name: 'Gaming Monitors', slug: 'gaming-monitors', icon: 'monitor', description: 'High refresh rate, 4K, OLED, and ultrawide monitors.' },
-  { name: '4K & OLED TVs', slug: '4k-oled-tvs', icon: 'tv', description: 'Smart TVs, OLED displays, and high-performance home displays.' },
-  { name: 'Mechanical Keyboards', slug: 'mechanical-keyboards', icon: 'keyboard', description: 'Wireless and wired mechanical keyboards with custom switches.' },
-  { name: 'Gaming Mice', slug: 'gaming-mice', icon: 'mouse', description: 'Lightweight, wireless, and ergonomic gaming mice.' },
-  { name: 'Headphones & Audio', slug: 'headphones-audio', icon: 'headphones', description: 'Noise-canceling headphones, wireless earbuds, and studio monitors.' },
-  { name: 'Routers & Mesh WiFi', slug: 'routers-mesh-wifi', icon: 'wifi', description: 'WiFi 6E and WiFi 7 routers, mesh systems, and networking switches.' },
-  { name: 'Cables & Docks', slug: 'cables-docks', icon: 'cable', description: 'Thunderbolt docks, USB-C hubs, HDMI 2.1, and DisplayPort cables.' },
+  // COMPUTERS
+  { name: 'Laptops', slug: 'laptops', icon: 'laptop', description: 'Compare Ultrabooks, business laptops, and notebooks.', group: 'Computers' },
+  { name: 'Gaming Laptops', slug: 'gaming-laptops', icon: 'gamepad-2', description: 'High-performance laptops equipped with RTX and Radeon graphics.', group: 'Computers' },
+  { name: 'MacBooks', slug: 'macbooks', icon: 'laptop', description: 'Apple MacBook Air and MacBook Pro with Apple Silicon processors.', group: 'Computers' },
+  { name: 'Desktops & Mini PCs', slug: 'desktops-mini-pcs', icon: 'monitor', description: 'Prebuilt desktop towers, workstations, and compact mini PCs.', group: 'Computers' },
+
+  // COMPONENTS
+  { name: 'GPUs & Graphics Cards', slug: 'gpus-graphics-cards', icon: 'cpu', description: 'NVIDIA GeForce RTX, AMD Radeon RX, and Intel Arc graphics cards.', group: 'Components' },
+  { name: 'CPUs & Processors', slug: 'cpus-processors', icon: 'cpu', description: 'Intel Core and AMD Ryzen desktop and workstation processors.', group: 'Components' },
+  { name: 'RAM & Memory', slug: 'ram-memory', icon: 'server', description: 'DDR4 and DDR5 desktop and laptop RAM kits.', group: 'Components' },
+  { name: 'SSDs & Storage', slug: 'ssds-storage', icon: 'hard-drive', description: 'NVMe M.2 SSDs, SATA drives, and portable external SSDs.', group: 'Components' },
+  { name: 'Motherboards', slug: 'motherboards', icon: 'layers', description: 'Intel and AMD socket motherboards across ATX and Mini-ITX.', group: 'Components' },
+  { name: 'Power Supplies & Cases', slug: 'power-supplies-cases', icon: 'box', description: 'Modular power supply units (PSUs) and PC enclosures.', group: 'Components' },
+
+  // MOBILE
+  { name: 'Smartphones', slug: 'smartphones', icon: 'smartphone', description: 'Flagship and mid-range Android smartphones and Apple iPhones.', group: 'Mobile' },
+  { name: 'Tablets & iPads', slug: 'tablets-ipads', icon: 'tablet', description: 'Tablets, iPads, and convertible touchscreen devices.', group: 'Mobile' },
+  { name: 'Smartwatches', slug: 'smartwatches', icon: 'watch', description: 'Smartwatches, fitness bands, and GPS sports watches.', group: 'Mobile' },
+
+  // DISPLAYS & ENTERTAINMENT
+  { name: 'Gaming Monitors', slug: 'gaming-monitors', icon: 'monitor', description: 'High refresh rate, 4K, OLED, and ultrawide monitors.', group: 'Displays & Entertainment' },
+  { name: '4K & OLED TVs', slug: '4k-oled-tvs', icon: 'tv', description: 'Smart TVs, OLED displays, and high-performance home displays.', group: 'Displays & Entertainment' },
+
+  // GAMING & PERIPHERALS
+  { name: 'Mechanical Keyboards', slug: 'mechanical-keyboards', icon: 'keyboard', description: 'Wireless and wired mechanical keyboards with custom switches.', group: 'Gaming & Peripherals' },
+  { name: 'Gaming Mice', slug: 'gaming-mice', icon: 'mouse', description: 'Lightweight, wireless, and ergonomic gaming mice.', group: 'Gaming & Peripherals' },
+  { name: 'Headphones & Audio', slug: 'headphones-audio', icon: 'headphones', description: 'Noise-canceling headphones, wireless earbuds, and Bluetooth speakers.', group: 'Gaming & Peripherals' },
+  { name: 'Routers & Mesh WiFi', slug: 'routers-mesh-wifi', icon: 'wifi', description: 'WiFi 6E and WiFi 7 routers, mesh systems, and networking switches.', group: 'Gaming & Peripherals' },
+  { name: 'Cables & Docks', slug: 'cables-docks', icon: 'cable', description: 'Thunderbolt docks, USB-C hubs, HDMI 2.1, and DisplayPort cables.', group: 'Gaming & Peripherals' },
+];
+
+/**
+ * Organized 5 Logical Groups for Shop Mega Menu
+ */
+export const CATEGORY_GROUPS: CategoryGroupDef[] = [
+  {
+    name: 'Computers',
+    categories: CANONICAL_CATEGORIES.filter((c) => c.group === 'Computers'),
+  },
+  {
+    name: 'Components',
+    categories: CANONICAL_CATEGORIES.filter((c) => c.group === 'Components'),
+  },
+  {
+    name: 'Mobile',
+    categories: CANONICAL_CATEGORIES.filter((c) => c.group === 'Mobile'),
+  },
+  {
+    name: 'Displays & Entertainment',
+    categories: CANONICAL_CATEGORIES.filter((c) => c.group === 'Displays & Entertainment'),
+  },
+  {
+    name: 'Gaming & Peripherals',
+    categories: CANONICAL_CATEGORIES.filter((c) => c.group === 'Gaming & Peripherals'),
+  },
 ];
 
 export const CANONICAL_BRANDS: BrandDef[] = [

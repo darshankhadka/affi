@@ -92,7 +92,7 @@ class ProductIngestionService
                     'model_number' => $dto->modelNumber,
                     'description' => $dto->description,
                     'short_description' => $dto->shortDescription,
-                    'status' => 'published',
+                    'status' => ($classification['is_excluded'] ?? false) ? 'excluded' : 'published',
                     'canonical_upc' => $dto->canonicalUpc,
                     'canonical_ean' => $dto->canonicalEan,
                     'canonical_mpn' => $dto->canonicalMpn,
