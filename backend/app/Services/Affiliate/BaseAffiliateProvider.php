@@ -37,31 +37,23 @@ abstract class BaseAffiliateProvider implements AffiliateProviderInterface
         return true;
     }
 
+    /**
+     * Default single-product lookup: delegates to fetchProductOffers() and assembles
+     * a minimal NormalizedProductDTO from the first offer returned.
+     *
+     * Subclasses should override this with a proper single-item API call where possible.
+     */
     public function getProduct(string $identifierType, string $identifierValue, Market $market): ?NormalizedProductDTO
     {
-        $offers = $this->fetchProductOffers($identifierType, $identifierValue, $market);
-        if (empty($offers)) {
-            return null;
-        }
-
-        $first = $offers[0];
-        return new NormalizedProductDTO(
-            name: $first['title'],
-            brand: 'Generic',
-            category: 'Laptops',
-            modelNumber: null,
-            shortDescription: $first['title'],
-            primaryImageUrl: null,
-            identifiers: [$identifierType => $identifierValue],
-            offers: $offers
-        );
+        $products = $this->searchProducts($identifierValue, $market, null, 1);
+        return !empty($products) ? $products[0] : null;
     }
 
     public function getProducts(array $identifiers, Market $market): array
     {
         $products = [];
         foreach ($identifiers as $type => $value) {
-            $prod = $this->getProduct($type, $value, $market);
+            $prod = $this->getProduct((string) $type, (string) $value, $market);
             if ($prod) {
                 $products[] = $prod;
             }
@@ -77,10 +69,10 @@ abstract class BaseAffiliateProvider implements AffiliateProviderInterface
     public function syncCatalogBatch(Market $market, int $limit = 50, ?string $cursor = null): array
     {
         return [
-            'processed' => 0,
-            'items' => [],
+            'processed'   => 0,
+            'items'       => [],
             'next_cursor' => null,
-            'has_more' => false,
+            'has_more'    => false,
         ];
     }
 

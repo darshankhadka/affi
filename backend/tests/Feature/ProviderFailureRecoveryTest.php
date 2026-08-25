@@ -21,40 +21,45 @@ class ProviderFailureRecoveryTest extends TestCase
 
     public function test_provider_handles_http_500_and_rate_limit_gracefully(): void
     {
-        // Simulate Awin 500 error
+        // Simulate Awin 500 error and CJ 429 rate limit
         Http::fake([
             'https://api.awin.com/publishers/12345/programmes*' => Http::response('Internal Server Error', 500),
             'https://ads.api.cj.com/query' => Http::response(['errors' => [['message' => 'Rate Limit Exceeded']]], 429),
         ]);
 
         $awin = AffiliateProvider::create([
-            'code' => 'awin',
-            'name' => 'Awin Publisher Network',
+            'code'      => 'awin',
+            'name'      => 'Awin Publisher Network',
             'is_active' => true,
-            'config' => ['api_token' => 'TOKEN', 'publisher_id' => '12345'],
-            'status' => 'connected',
+            'config'    => ['api_token' => 'TOKEN', 'publisher_id' => '12345'],
+            'status'    => 'connected',
         ]);
 
         $cj = AffiliateProvider::create([
-            'code' => 'cj',
-            'name' => 'CJ Affiliate',
+            'code'      => 'cj',
+            'name'      => 'CJ Affiliate',
             'is_active' => true,
-            'config' => ['api_token' => 'TOKEN', 'company_id' => '5566'],
-            'status' => 'connected',
+            'config'    => ['api_token' => 'TOKEN', 'company_id' => '5566'],
+            'status'    => 'connected',
         ]);
 
         $awinConnector = new AwinProvider();
-        $cjConnector = new CjProvider();
+        $cjConnector   = new CjProvider();
 
         $awinRes = $awinConnector->testConnection($awin);
-        $cjRes = $cjConnector->testConnection($cj);
+        $cjRes   = $cjConnector->testConnection($cj);
 
+        // Awin: 500 server error
         $this->assertFalse($awinRes['connected']);
         $this->assertEquals('provider_server_error', $awinRes['status']);
 
+        // CJ: 429 rate limit — now correctly reported as 'rate_limited'
+        // (previously was generic 'error'; distinguishing rate limits from errors
+        // allows proper backoff handling)
         $this->assertFalse($cjRes['connected']);
-        $this->assertEquals('error', $cjRes['status']);
+        $this->assertEquals('rate_limited', $cjRes['status']);
     }
+
 
     public function test_stale_offer_backoff_increments_error_count(): void
     {

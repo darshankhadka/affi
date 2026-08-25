@@ -20,16 +20,21 @@ class CjProviderTest extends TestCase
 
     public function test_connection_reports_not_configured_when_empty(): void
     {
+        // config: [] means the provider record has an explicit config column with an
+        // empty object — both api_token and company_id are absent. Since isConnected()
+        // first checks $provider->config for an array (it is []), then checks individual
+        // keys (both empty), and env vars are not set in the test environment, the result
+        // must be 'not_configured'.
         $provider = AffiliateProvider::create([
-            'code' => 'cj',
-            'name' => 'CJ Affiliate',
+            'code'   => 'cj',
+            'name'   => 'CJ Affiliate',
             'is_active' => false,
-            'config' => null,
+            'config' => [],     // explicit empty config, not null
             'status' => 'disconnected',
         ]);
 
         $connector = new CjProvider();
-        $result = $connector->testConnection($provider);
+        $result    = $connector->testConnection($provider);
 
         $this->assertFalse($result['connected']);
         $this->assertEquals('not_configured', $result['status']);

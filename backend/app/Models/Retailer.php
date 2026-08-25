@@ -23,6 +23,7 @@ class Retailer extends Model
         'affiliate_provider_id',
         'affiliate_network',
         'affiliate_program_id',
+        'programme_id',
         'status',
         'integration_type',
         'api_available',
@@ -50,6 +51,15 @@ class Retailer extends Model
     public function affiliateProvider()
     {
         return $this->belongsTo(AffiliateProvider::class, 'affiliate_provider_id');
+    }
+
+    /**
+     * The approved programme record for this retailer's affiliate relationship.
+     * Check $retailer->programme->isApproved() before promoting any offer.
+     */
+    public function programme()
+    {
+        return $this->belongsTo(AffiliateProgramme::class, 'programme_id');
     }
 
     public function affiliateAccounts()

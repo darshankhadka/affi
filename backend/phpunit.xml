@@ -27,5 +27,16 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
+        <!-- Explicitly clear affiliate provider credentials in test environment.
+             This ensures tests that check 'not_configured' states work correctly
+             regardless of what is set in the local .env file. -->
+        <env name="AWIN_API_TOKEN" value=""/>
+        <env name="AWIN_PUBLISHER_ID" value=""/>
+        <env name="AWIN_DATAFEED_URL" value=""/>
+        <env name="AWIN_DATAFEED_API_KEY" value=""/>
+        <env name="CJ_API_TOKEN" value=""/>
+        <env name="CJ_COMPANY_ID" value=""/>
+        <env name="AMAZON_PAAPI_KEY" value=""/>
+        <env name="AMAZON_PAAPI_SECRET" value=""/>
     </php>
 </phpunit>
