@@ -457,7 +457,7 @@ class AwinDatafeedService
 
             // Process any remaining buffer content
             if ($headersParsed && $buffer !== '') {
-                $parsedRecords = $this->parseCsvBuffer($buffer, $cleanHeaders, true, true);
+                $parsedRecords = $this->parseCsvBuffer($buffer, $cleanHeaders, $headersParsed, true);
                 foreach ($parsedRecords['records'] as $record) {
                     $rowsExamined++;
                     if (!empty($searchTerms)) {

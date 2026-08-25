@@ -5,7 +5,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { FormField } from '../components/ui/FormField';
-import { Network, Settings2, Play, CheckCircle2, AlertCircle, RefreshCw, ShoppingCart, ArrowRight } from 'lucide-react';
+import { Network, Settings2, Play, CheckCircle2, AlertCircle, RefreshCw, ShoppingCart, ArrowRight, ListFilter, PauseCircle, PlayCircle, AlertTriangle } from 'lucide-react';
 
 export const AffiliateProviders: React.FC = () => {
   const [providers, setProviders] = useState<any[]>([]);
@@ -14,6 +14,16 @@ export const AffiliateProviders: React.FC = () => {
   const [syncProvider, setSyncProvider] = useState<any | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncOutput, setSyncOutput] = useState<string | null>(null);
+
+  // Programmes Discovery State
+  const [programmesProvider, setProgrammesProvider] = useState<any | null>(null);
+  const [programmesData, setProgrammesData] = useState<{ database_programmes: any[]; live_programmes: any[] } | null>(null);
+  const [isLoadingProgrammes, setIsLoadingProgrammes] = useState(false);
+
+  // View Errors State
+  const [errorsProvider, setErrorsProvider] = useState<any | null>(null);
+  const [errorsData, setErrorsData] = useState<any[]>([]);
+  const [isLoadingErrors, setIsLoadingErrors] = useState(false);
 
   // Amazon Manual Import State (Mode 1)
   const [isAmazonImportOpen, setIsAmazonImportOpen] = useState(false);
@@ -68,6 +78,45 @@ export const AffiliateProviders: React.FC = () => {
     setConfigFields({});
   };
 
+  const handleTogglePause = async (p: any) => {
+    try {
+      await api.post(`/admin/affiliates/providers/${p.id}/pause`, {
+        is_active: !p.is_active,
+      });
+      fetchProviders();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update provider pause state.');
+    }
+  };
+
+  const openProgrammesModal = async (p: any) => {
+    setProgrammesProvider(p);
+    setIsLoadingProgrammes(true);
+    setProgrammesData(null);
+    try {
+      const res = await api.get(`/admin/affiliates/providers/${p.id}/programmes`);
+      setProgrammesData(res.data.data);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to fetch programmes.');
+    } finally {
+      setIsLoadingProgrammes(false);
+    }
+  };
+
+  const openErrorsModal = async (p: any) => {
+    setErrorsProvider(p);
+    setIsLoadingErrors(true);
+    setErrorsData([]);
+    try {
+      const res = await api.get(`/admin/affiliates/providers/${p.id}/errors`);
+      setErrorsData(res.data.data.recent_errors || []);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to fetch errors.');
+    } finally {
+      setIsLoadingErrors(false);
+    }
+  };
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProvider) return;
@@ -113,7 +162,14 @@ export const AffiliateProviders: React.FC = () => {
             <Network className="w-4 h-4" />
           </div>
           <div>
-            <span className="font-semibold text-slate-200">{p.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-200">{p.name}</span>
+              {!p.is_active && (
+                <span className="px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-400 border border-amber-800/60 text-[10px] uppercase font-mono">
+                  PAUSED
+                </span>
+              )}
+            </div>
             <p className="text-[11px] text-slate-500 font-mono">Driver: {p.code}</p>
           </div>
         </div>
@@ -138,8 +194,8 @@ export const AffiliateProviders: React.FC = () => {
     {
       header: 'Connector Status',
       accessor: (p) => {
-        if (p.status === 'deferred') {
-          return <Badge variant="warning">Deferred / Not Eligible</Badge>;
+        if (p.code === 'amazon') {
+          return <Badge variant="neutral">Mode 1: Active | Mode 2: Dormant</Badge>;
         }
         if (p.status === 'connected') {
           return <Badge variant="success" dot>Connected</Badge>;
@@ -150,7 +206,7 @@ export const AffiliateProviders: React.FC = () => {
     {
       header: 'Actions',
       accessor: (p) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <Button
             variant="ghost"
             size="sm"
@@ -169,6 +225,14 @@ export const AffiliateProviders: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
+            onClick={() => openProgrammesModal(p)}
+            icon={<ListFilter className="w-3.5 h-3.5" />}
+          >
+            Programs
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => {
               setSyncProvider(p);
               setSyncOutput(null);
@@ -176,6 +240,22 @@ export const AffiliateProviders: React.FC = () => {
             icon={<Play className="w-3.5 h-3.5" />}
           >
             Sync
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleTogglePause(p)}
+            title={p.is_active ? 'Pause Ingestion' : 'Resume Ingestion'}
+          >
+            {p.is_active ? <PauseCircle className="w-3.5 h-3.5 text-amber-400" /> : <PlayCircle className="w-3.5 h-3.5 text-emerald-400" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openErrorsModal(p)}
+            title="View Errors"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
           </Button>
           <Button
             variant="secondary"
@@ -607,6 +687,121 @@ export const AffiliateProviders: React.FC = () => {
               </form>
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Discovered / Approved Programmes Modal */}
+      <Modal
+        isOpen={!!programmesProvider}
+        onClose={() => setProgrammesProvider(null)}
+        title={`Advertiser Programmes: ${programmesProvider?.name}`}
+        maxWidth="lg"
+      >
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+          {isLoadingProgrammes ? (
+            <div className="flex items-center justify-center py-10">
+              <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Database Approved Programmes ({programmesData?.database_programmes?.length || 0})
+                </h4>
+                {(!programmesData?.database_programmes || programmesData.database_programmes.length === 0) ? (
+                  <p className="text-xs text-slate-500 italic">No programmes configured in database.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {programmesData.database_programmes.map((p: any) => (
+                      <div key={p.id} className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-slate-200">{p.name}</span>
+                            <Badge variant={p.status === 'approved' ? 'success' : 'warning'}>
+                              {p.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            ID: <span className="font-mono text-slate-300">{p.external_programme_id}</span> | Country: {p.country_code || 'Global'} | Currency: {p.currency || 'EUR'}
+                          </p>
+                        </div>
+                        {p.commission_rate && (
+                          <div className="text-right">
+                            <span className="text-xs font-mono text-emerald-400 font-semibold">{p.commission_rate}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {programmesData?.live_programmes && programmesData.live_programmes.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                    Live API Joined Programmes ({programmesData.live_programmes.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {programmesData.live_programmes.map((lp: any) => (
+                      <div key={lp.id} className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-medium text-slate-300">{lp.name}</span>
+                          <p className="text-[11px] text-slate-500 font-mono">ID: {lp.id} | {lp.primaryRegion?.countryCode || 'Global'} | {lp.currencyCode}</p>
+                        </div>
+                        <Badge variant="neutral">{lp.status || 'Active'}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4 border-t border-slate-800">
+            <Button variant="secondary" onClick={() => setProgrammesProvider(null)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* View Errors Modal */}
+      <Modal
+        isOpen={!!errorsProvider}
+        onClose={() => setErrorsProvider(null)}
+        title={`Recent Errors: ${errorsProvider?.name}`}
+        maxWidth="md"
+      >
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+          {isLoadingErrors ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin" />
+            </div>
+          ) : errorsData.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 text-xs">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2 opacity-80" />
+              No recent ingestion errors recorded for {errorsProvider?.name}.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {errorsData.map((job: any) => (
+                <div key={job.id} className="p-3 bg-slate-950 border border-rose-900/40 rounded-xl text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-rose-400">{job.batch_type}</span>
+                    <span className="text-[10px] font-mono text-slate-500">Job #{job.id}</span>
+                  </div>
+                  <p className="text-slate-300 font-mono text-[11px] whitespace-pre-wrap">{job.error_log || 'Unspecified batch error'}</p>
+                  <p className="text-[10px] text-slate-500">Started: {new Date(job.started_at).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4 border-t border-slate-800">
+            <Button variant="secondary" onClick={() => setErrorsProvider(null)}>
+              Close
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

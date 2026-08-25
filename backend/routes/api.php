@@ -96,6 +96,9 @@ Route::middleware(['auth:sanctum', 'role:Super Admin|Admin|Editor|Analyst'])->pr
     Route::put('/affiliates/providers/{id}', [AffiliateAdminController::class, 'updateProvider'])->middleware('role:Super Admin|Admin');
     Route::post('/affiliates/providers/{id}/test', [AffiliateAdminController::class, 'testProviderConnection'])->middleware('role:Super Admin|Admin');
     Route::post('/affiliates/providers/{id}/sync', [AffiliateAdminController::class, 'triggerSync'])->middleware('role:Super Admin|Admin');
+    Route::get('/affiliates/providers/{id}/programmes', [AffiliateAdminController::class, 'discoverProgrammes'])->middleware('role:Super Admin|Admin|Editor');
+    Route::post('/affiliates/providers/{id}/pause', [AffiliateAdminController::class, 'togglePause'])->middleware('role:Super Admin|Admin');
+    Route::get('/affiliates/providers/{id}/errors', [AffiliateAdminController::class, 'providerErrors'])->middleware('role:Super Admin|Admin|Editor');
     Route::post('/affiliates/amazon/validate-url', [AffiliateAdminController::class, 'validateAmazonUrl'])->middleware('role:Super Admin|Admin|Editor');
     Route::post('/affiliates/amazon/import', [AffiliateAdminController::class, 'importAmazonProduct'])->middleware('role:Super Admin|Admin|Editor');
     Route::get('/affiliates/retailers', [AffiliateAdminController::class, 'retailers']);

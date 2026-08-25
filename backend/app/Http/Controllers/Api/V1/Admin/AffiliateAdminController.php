@@ -293,4 +293,78 @@ class AffiliateAdminController extends BaseApiController
             ],
         ], 'Amazon product imported successfully.', 201);
     }
+
+    /**
+     * Discover and list advertiser programmes for a provider
+     */
+    public function discoverProgrammes(int $id, \App\Services\Affiliate\AffiliateRegistry $registry): JsonResponse
+    {
+        $provider = AffiliateProvider::findOrFail($id);
+
+        $dbProgrammes = \App\Models\AffiliateProgramme::where('provider_id', $provider->id)
+            ->orderBy('status')
+            ->orderBy('name')
+            ->get();
+
+        $liveProgrammes = [];
+        if ($registry->has($provider->code)) {
+            $connector = $registry->get($provider->code);
+            if ($connector->isConnected($provider) && method_exists($connector, 'getJoinedProgrammes')) {
+                try {
+                    $liveProgrammes = $connector->getJoinedProgrammes($provider);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning("Failed to fetch live programmes for {$provider->code}: {$e->getMessage()}");
+                }
+            }
+        }
+
+        return $this->success([
+            'provider' => new AffiliateProviderResource($provider),
+            'database_programmes' => $dbProgrammes,
+            'live_programmes' => $liveProgrammes,
+        ], 'Programmes retrieved.');
+    }
+
+    /**
+     * Pause or resume provider ingestion
+     */
+    public function togglePause(Request $request, int $id): JsonResponse
+    {
+        $provider = AffiliateProvider::findOrFail($id);
+        $isActive = $request->boolean('is_active', !$provider->is_active);
+
+        $oldValues = $provider->toArray();
+        $provider->update(['is_active' => $isActive]);
+
+        $this->auditLogger->log('provider.toggle_pause', $provider, $oldValues, $provider->toArray());
+
+        $stateStr = $isActive ? 'resumed' : 'paused';
+        return $this->success(new AffiliateProviderResource($provider), "Provider ingestion {$stateStr}.");
+    }
+
+    /**
+     * Get recent ingestion errors and sync logs for a provider
+     */
+    public function providerErrors(int $id): JsonResponse
+    {
+        $provider = AffiliateProvider::findOrFail($id);
+
+        $jobs = \App\Models\AutomationJob::where('provider_id', $provider->id)
+            ->where(function ($q) {
+                $q->where('failed_items', '>', 0)
+                  ->orWhere('status', 'failed');
+            })
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
+        return $this->success([
+            'provider' => [
+                'id' => $provider->id,
+                'name' => $provider->name,
+                'code' => $provider->code,
+            ],
+            'recent_errors' => $jobs,
+        ], 'Recent provider errors retrieved.');
+    }
 }

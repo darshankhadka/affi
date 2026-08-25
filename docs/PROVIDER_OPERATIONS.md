@@ -1,18 +1,39 @@
-# ARIKARTECH — Provider Operations & Failure Recovery
+# ARIKARTECH — Affiliate Provider Operations Runbook
 
-## 1. Multi-Network Integration Health
-
-ARIKARTECH implements drivers for 4 premier networks:
-1. **CJ Affiliate** (`cj`): GraphQL API with personal access tokens.
-2. **Awin Publisher Network** (`awin`): REST API with OAuth bearer tokens.
-3. **Impact.com** (`impact`): REST API with Basic Auth.
-4. **Amazon PA-API 5.0** (`amazon`): Maintained in **DEFERRED / NOT ELIGIBLE** status.
+This runbook describes operational management, connectivity testing, credential configuration, and error recovery for Awin, CJ Affiliate, Amazon Associates, and Impact.
 
 ---
 
-## 2. Failure Recovery & Circuit Breaking
-To prevent catalog corruption during external network outages:
-1. **Zero Destructive Deletions**: If a provider API returns HTTP 500, existing offers and canonical products are **never** deleted.
-2. **Retain Last Known State**: Prices and availability remain in their last verified state until scheduled freshness policies evaluate them.
-3. **Exponential Error Backoff**: Repeated connection errors increment `error_count` and defer retries exponentially ($2^{\text{error\_count}}$ hours).
-4. **Zero Credential Exposure**: API keys, auth tokens, and client secrets are encrypted in the database and never output in logs, frontend responses, or error messages.
+## 1. Provider Summary Matrix
+
+| Provider | Driver Code | API Type | Credential Keys in `.env` | Admin Controls |
+| :--- | :--- | :--- | :--- | :--- |
+| **Awin** | `awin` | REST API + GZIP/ZIP Datafeed Stream | `AWIN_API_TOKEN`, `AWIN_PUBLISHER_ID`, `AWIN_DATAFEED_URL`, `AWIN_DATAFEED_API_KEY` | Connect, Test, Sync, Programs, Pause, Errors, Config |
+| **CJ Affiliate** | `cj` | GraphQL (`ads.api.cj.com/query`) | `CJ_API_TOKEN`, `CJ_COMPANY_ID`, `CJ_WEBSITE_ID` | Connect, Test, Sync, Programs, Pause, Errors, Config |
+| **Amazon Associates** | `amazon` | Mode 1: Manual URL/ASIN Import<br>Mode 2: PA-API 5.0 (AWS SigV4) | `AMAZON_TAG_US`, `AMAZON_TAG_UK`, `AMAZON_TAG_DE`, etc.<br>`AMAZON_PAAPI_KEY`, `AMAZON_PAAPI_SECRET` | Mode 1 Import Modal, Mode 2 Config |
+| **Impact** | `impact` | REST API v1 | `IMPACT_ACCOUNT_SID`, `IMPACT_AUTH_TOKEN`, `IMPACT_MEDIA_PARTNER_ID` | Connect, Test, Sync, Pause, Errors, Config |
+
+---
+
+## 2. Live Diagnostic Commands
+
+```bash
+# Awin Diagnostic
+php artisan affiliate:awin-diagnostic
+
+# CJ Diagnostic
+php artisan affiliate:cj-diagnostic
+
+# Amazon Diagnostic
+php artisan affiliate:amazon-diagnostic
+
+# Overall System Readiness
+php artisan system:production-readiness
+```
+
+---
+
+## 3. Redirect Telemetry & Secret Protection
+
+- Outbound affiliate clicks flow through `/go/{offerId}`.
+- All tokens, AWS signatures, API keys, and publisher IDs are stripped from error logs and client responses using `App\Support\SecretRedactor`.

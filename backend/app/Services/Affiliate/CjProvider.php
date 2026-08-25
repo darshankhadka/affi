@@ -47,25 +47,9 @@ class CjProvider extends BaseAffiliateProvider
      */
     public function isConnected(AffiliateProvider $provider): bool
     {
-        $config = $provider->config;
-
-        // If the provider has no explicit config array set, it is not configured.
-        if (!is_array($config)) {
-            return false;
-        }
-
-        $apiToken = $config['api_token'] ?? null;
-        $companyId = $config['company_id'] ?? null;
-
-        // Fall back to env only when config is present but the individual keys are missing.
-        // This allows "config: {}" to remain "not_configured" while still allowing
-        // env-only setups where config is populated with at least one key.
-        if (empty($apiToken)) {
-            $apiToken = config('services.cj.api_token');
-        }
-        if (empty($companyId)) {
-            $companyId = config('services.cj.company_id');
-        }
+        $config = $provider->config ?? [];
+        $apiToken = $config['api_token'] ?? config('services.cj.api_token');
+        $companyId = $config['company_id'] ?? config('services.cj.company_id');
 
         return !empty($apiToken) && !empty($companyId);
     }
