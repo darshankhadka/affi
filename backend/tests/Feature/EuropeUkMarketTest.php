@@ -86,7 +86,7 @@ class EuropeUkMarketTest extends TestCase
         $metadataService = app(MetadataService::class);
         $meta = $metadataService->getProductMetadata($product, $de);
 
-        $siteUrl = config('app.url', 'https://arikartech.com');
+        $siteUrl = config('frontend.url', config('app.url', 'https://arikartech.com'));
         $this->assertEquals("{$siteUrl}/de/products/apple-macbook-air-m4", $meta['canonical']);
         $this->assertArrayHasKey('de-de', $meta['hreflang']);
         $this->assertArrayHasKey('fr-fr', $meta['hreflang']);

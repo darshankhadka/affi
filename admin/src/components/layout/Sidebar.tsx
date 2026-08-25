@@ -25,6 +25,7 @@ import {
   Flame,
   FileCode2,
   Sparkles,
+  Database,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -91,6 +92,7 @@ export const Sidebar: React.FC = () => {
     {
       title: 'AUTOMATION',
       items: [
+        { name: 'Bulk Ingestion Engine', href: '/automation/ingestion', icon: <Database className="w-4 h-4" /> },
         { name: 'Sync Jobs & Health', href: '/automation', icon: <Cpu className="w-4 h-4" /> },
       ],
     },

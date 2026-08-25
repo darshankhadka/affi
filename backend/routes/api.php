@@ -109,6 +109,9 @@ Route::middleware(['auth:sanctum', 'role:Super Admin|Admin|Editor|Analyst'])->pr
     // Automation & Ingestion
     Route::get('/automation/jobs', [AutomationAdminController::class, 'jobs']);
     Route::post('/automation/batch', [AutomationAdminController::class, 'triggerBatch'])->middleware('role:Super Admin|Admin');
+    Route::get('/ingestion/status', [\App\Http\Controllers\Api\V1\Admin\IngestionAdminController::class, 'status']);
+    Route::post('/ingestion/start', [\App\Http\Controllers\Api\V1\Admin\IngestionAdminController::class, 'start'])->middleware('role:Super Admin|Admin');
+    Route::get('/ingestion/jobs/{id}', [\App\Http\Controllers\Api\V1\Admin\IngestionAdminController::class, 'jobDetails']);
 
     // SEO & Redirects
     Route::get('/seo/overview', [SeoAdminController::class, 'overview']);

@@ -34,8 +34,8 @@ class ProductMatchingService
     {
         $identifiers = $payload['identifiers'] ?? [];
 
-        // 1. High Confidence Indexed Identifiers Lookup
-        $priorityTypes = ['UPC', 'EAN', 'GTIN', 'ASIN', 'MPN'];
+        // 1. High Confidence Indexed Identifiers Lookup (Priority: ASIN > GTIN > EAN > UPC > MPN)
+        $priorityTypes = ['ASIN', 'GTIN', 'EAN', 'UPC', 'MPN'];
         foreach ($priorityTypes as $type) {
             if (!empty($identifiers[$type])) {
                 $normalized = ProductIdentifier::normalize($type, $identifiers[$type]);
@@ -57,13 +57,19 @@ class ProductMatchingService
 
         // 2. Direct Canonical Model + Brand lookup
         if (!empty($payload['brand_name']) && !empty($payload['model_number'])) {
-            $brand = Brand::where('name', $payload['brand_name'])
-                ->orWhere('slug', Str::slug($payload['brand_name']))
+            $brandName = trim($payload['brand_name']);
+            $brand = Brand::where('name', $brandName)
+                ->orWhere('slug', Str::slug($brandName))
                 ->first();
 
             if ($brand) {
+                $cleanModel = trim($payload['model_number']);
                 $product = Product::where('brand_id', $brand->id)
-                    ->where('model_number', trim($payload['model_number']))
+                    ->where(function ($query) use ($cleanModel) {
+                        $query->where('model_number', $cleanModel)
+                            ->orWhere('model_number', strtoupper($cleanModel))
+                            ->orWhere('model_number', strtolower($cleanModel));
+                    })
                     ->first();
 
                 if ($product) {

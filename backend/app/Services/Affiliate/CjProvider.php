@@ -306,15 +306,12 @@ class CjProvider extends BaseAffiliateProvider
         int $limit = 50,
         int $offset = 0
     ): array {
-        if (empty($partnerIds)) {
-            return ['items' => [], 'total' => 0, 'has_more' => false];
-        }
-
         $currency     = $this->marketCurrencies[strtolower($market->code)] ?? 'USD';
         $targetCountry = strtoupper($market->code === 'uk' ? 'GB' : $market->code);
 
-        // Use offset pagination. Do NOT use nextPage + sortBy together.
-        $graphql = <<<'GQL'
+        $hasSpecificPartners = !empty($partnerIds);
+
+        $graphql = $hasSpecificPartners ? <<<'GQL'
             query fetchPartnerProducts(
                 $companyId: ID!,
                 $partnerIds: [ID!],
@@ -364,7 +361,68 @@ class CjProvider extends BaseAffiliateProvider
                     }
                 }
             }
+        GQL : <<<'GQL'
+            query fetchJoinedProducts(
+                $companyId: ID!,
+                $limit: Int!,
+                $offset: Int,
+                $currency: String,
+                $targetCountry: String,
+                $availability: Availability
+            ) {
+                products(
+                    companyId: $companyId,
+                    partnerStatus: JOINED,
+                    limit: $limit,
+                    offset: $offset,
+                    currency: $currency,
+                    targetCountry: $targetCountry,
+                    availability: $availability
+                ) {
+                    totalCount
+                    resultList {
+                        id
+                        title
+                        description
+                        price {
+                            amount
+                            currency
+                        }
+                        salePrice {
+                            amount
+                            currency
+                        }
+                        advertiserName
+                        advertiserId
+                        linkCode(pid: "default") {
+                            clickUrl
+                        }
+                        targetUrl
+                        imageLink
+                        upc
+                        isbn
+                        gtin
+                        manufacturerSku
+                        brand
+                        inStock
+                        availability
+                    }
+                }
+            }
         GQL;
+
+        $variables = [
+            'companyId'     => (string) $companyId,
+            'limit'         => min($limit, 100),
+            'offset'        => max(0, $offset),
+            'currency'      => $currency,
+            'targetCountry' => $targetCountry,
+            'availability'  => 'IN_STOCK',
+        ];
+
+        if ($hasSpecificPartners) {
+            $variables['partnerIds'] = array_map('strval', $partnerIds);
+        }
 
         try {
             $response = Http::withHeaders([
@@ -372,15 +430,7 @@ class CjProvider extends BaseAffiliateProvider
                 'Content-Type'  => 'application/json',
             ])->timeout(15)->post('https://ads.api.cj.com/query', [
                 'query'     => $graphql,
-                'variables' => [
-                    'companyId'     => (string) $companyId,
-                    'partnerIds'    => array_map('strval', $partnerIds),
-                    'limit'         => min($limit, 100),
-                    'offset'        => max(0, $offset),
-                    'currency'      => $currency,
-                    'targetCountry' => $targetCountry,
-                    'availability'  => 'IN_STOCK',
-                ],
+                'variables' => $variables,
             ]);
 
             if (!$response->successful()) {

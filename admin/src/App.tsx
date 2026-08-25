@@ -21,6 +21,7 @@ import { SearchOverview } from './pages/SearchOverview';
 import { ContentGuides } from './pages/ContentGuides';
 import { SeoOverview } from './pages/SeoOverview';
 import { AutomationStatus } from './pages/AutomationStatus';
+import { IngestionCenter } from './pages/IngestionCenter';
 import { SettingsGeneral } from './pages/SettingsGeneral';
 import { UsersAndRoles } from './pages/UsersAndRoles';
 
@@ -66,8 +67,9 @@ export const App: React.FC = () => {
               {/* SEO */}
               <Route path="seo" element={<SeoOverview />} />
               
-              {/* Automation */}
+              {/* Automation & Ingestion */}
               <Route path="automation" element={<AutomationStatus />} />
+              <Route path="automation/ingestion" element={<IngestionCenter />} />
               
               {/* Settings */}
               <Route path="settings" element={<SettingsGeneral />} />
