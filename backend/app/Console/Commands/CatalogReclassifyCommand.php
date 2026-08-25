@@ -58,9 +58,15 @@ class CatalogReclassifyCommand extends Command
                     'merchant_category' => $product->merchant_category,
                 ]);
 
-                if ($classification['is_excluded']) {
+                $hasActiveOffer = DB::table('offers')
+                    ->where('product_id', $product->id)
+                    ->where('is_active', true)
+                    ->where('price', '>', 0)
+                    ->exists();
+
+                if ($classification['is_excluded'] || !$hasActiveOffer) {
                     $excludedCount++;
-                    $source = $classification['source'];
+                    $source = $classification['is_excluded'] ? $classification['source'] : 'no_active_offers';
                     $exclusionBreakdown[$source] = ($exclusionBreakdown[$source] ?? 0) + 1;
 
                     if (!$dryRun) {
