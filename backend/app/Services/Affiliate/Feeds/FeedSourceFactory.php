@@ -27,9 +27,31 @@ class FeedSourceFactory
         ?int $advertiserId = null,
         ?Market $market = null
     ): ?FeedSource {
-        // 1. Publisher-wide configured feed URL takes precedence.
         $configuredFeedUrl = $providerConfig['datafeed_url'] ?? $appConfig['datafeed_url'] ?? null;
 
+        // Extract datafeed API key from config or configured URL
+        $apiKey = $providerConfig['datafeed_api_key'] ?? $appConfig['datafeed_api_key'] ?? null;
+        if (!empty($configuredFeedUrl) && preg_match('/apikey\/([a-zA-Z0-9_-]+)\//', $configuredFeedUrl, $m)) {
+            $apiKey = $m[1];
+        }
+
+        // 1. If a specific advertiser ID is requested, construct advertiser-specific feed source.
+        if ($advertiserId && $advertiserId > 0 && !empty($apiKey)) {
+            return new AdvertiserSpecificFeedSource(
+                'https://productdata.awin.com/datafeed/download',
+                $advertiserId,
+                [
+                    'api_key' => $apiKey,
+                    'columns' => implode(',', AwinDatafeedService::COMPREHENSIVE_FEED_COLUMNS),
+                    'compression' => 'gzip',
+                    'delimiter' => '%2C',
+                    'format' => 'csv',
+                ],
+                self::resolveLanguage($market)
+            );
+        }
+
+        // 2. Publisher-wide configured feed URL (Architecture A).
         if (!empty($configuredFeedUrl)) {
             $advertiserIds = [];
             if (!empty($providerConfig['advertiser_ids']) && is_array($providerConfig['advertiser_ids'])) {
@@ -45,27 +67,9 @@ class FeedSourceFactory
                 $configuredFeedUrl,
                 $advertiserIds,
                 [
-                    'api_key' => $providerConfig['datafeed_api_key'] ?? $appConfig['datafeed_api_key'] ?? null,
+                    'api_key' => $apiKey,
                 ],
                 $marketFilter
-            );
-        }
-
-        // 2. Advertiser-specific feed from API key + advertiser id (Architecture B).
-        $apiKey = $providerConfig['datafeed_api_key'] ?? $appConfig['datafeed_api_key'] ?? null;
-
-        if (!empty($apiKey) && $advertiserId && $advertiserId > 0) {
-            return new AdvertiserSpecificFeedSource(
-                'https://productdata.awin.com/datafeed/download',
-                $advertiserId,
-                [
-                    'api_key' => $apiKey,
-                    'columns' => implode(',', AwinDatafeedService::COMPREHENSIVE_FEED_COLUMNS),
-                    'compression' => 'gzip',
-                    'delimiter' => '%2C',
-                    'format' => 'csv',
-                ],
-                self::resolveLanguage($market)
             );
         }
 

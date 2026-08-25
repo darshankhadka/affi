@@ -19,6 +19,10 @@ import {
   ArrowRight,
   Sparkles,
   Search,
+  Eye,
+  Store,
+  FileSpreadsheet,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 export const IngestionCenter: React.FC = () => {
@@ -33,12 +37,10 @@ export const IngestionCenter: React.FC = () => {
   const [isCjRunning, setIsCjRunning] = useState(false);
   const [cjResult, setCjResult] = useState<any | null>(null);
 
-  // Awin Bulk Ingestion Form State
-  const [awinMarket, setAwinMarket] = useState('de');
-  const [awinAdvertiserId, setAwinAdvertiserId] = useState('25962'); // BlazeVideo DE
-  const [awinMax, setAwinMax] = useState(50);
-  const [isAwinRunning, setIsAwinRunning] = useState(false);
-  const [awinResult, setAwinResult] = useState<any | null>(null);
+  // Awin Single Action State
+  const [activeProgrammeId, setActiveProgrammeId] = useState<string | null>(null);
+  const [actionOutput, setActionOutput] = useState<any | null>(null);
+  const [isActionRunning, setIsActionRunning] = useState(false);
 
   // Selected Job Details Modal
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
@@ -81,24 +83,34 @@ export const IngestionCenter: React.FC = () => {
     }
   };
 
-  const handleStartAwin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAwinRunning(true);
-    setAwinResult(null);
+  const handleProgrammeAction = async (prog: any, action: 'test' | 'dry_run' | 'ingest_100' | 'ingest_1000') => {
+    setActiveProgrammeId(prog.external_programme_id);
+    setIsActionRunning(true);
+    setActionOutput(null);
+
+    const marketCode = prog.network_metadata?.market || 'de';
+    const limit = action === 'test' ? 5 : (action === 'dry_run' ? 10 : (action === 'ingest_100' ? 100 : 1000));
+    const isDryRun = action === 'dry_run' || action === 'test';
 
     try {
       const res = await api.post('/admin/ingestion/start', {
         provider: 'awin',
-        market: awinMarket,
-        advertiser_id: parseInt(awinAdvertiserId, 10),
-        max_products: awinMax,
+        advertiser_id: parseInt(prog.external_programme_id, 10),
+        market: marketCode,
+        max_products: limit,
+        dry_run: isDryRun,
       });
-      setAwinResult(res.data.data);
+
+      setActionOutput({
+        programmeName: prog.name,
+        action,
+        data: res.data.data,
+      });
       fetchStatus();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Awin Ingestion failed.');
+      alert(err.response?.data?.message || `Action failed for ${prog.name}`);
     } finally {
-      setIsAwinRunning(false);
+      setIsActionRunning(false);
     }
   };
 
@@ -112,7 +124,7 @@ export const IngestionCenter: React.FC = () => {
             Catalog Ingestion & Bulk Operations Engine
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Resumable, high-volume product pipelines across CJ Affiliate, Awin Create-a-Feed, and Amazon Mode 1.
+            Resumable high-volume catalog pipelines across Awin Create-a-Feed, CJ GraphQL, and Amazon Mode 1.
           </p>
         </div>
         <Button
@@ -126,33 +138,136 @@ export const IngestionCenter: React.FC = () => {
         </Button>
       </div>
 
-      {/* Live KPI Metric Grid */}
+      {/* Real Live KPI Metric Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard
           title="Canonical Products"
           value={metrics?.total_products ?? 0}
-          subtitle={`${metrics?.published_products ?? 0} published`}
-          icon={<Layers className="w-4 h-4" />}
+          subtitle={`${metrics?.products_added_today ?? 0} added today`}
+          icon={<Layers className="w-4 h-4 text-emerald-400" />}
         />
         <StatCard
           title="Total Store Offers"
           value={metrics?.total_offers ?? 0}
           subtitle={`${metrics?.active_offers ?? 0} active & in-stock`}
-          icon={<ShoppingCart className="w-4 h-4" />}
+          icon={<ShoppingCart className="w-4 h-4 text-teal-400" />}
         />
         <StatCard
-          title="CJ Products Imported"
-          value={metrics?.provider_offers?.cj ?? 0}
-          subtitle="Joined GraphQL partners"
-          icon={<Network className="w-4 h-4" />}
+          title="Products with Images"
+          value={metrics?.products_with_images ?? 0}
+          subtitle={`${Math.round(((metrics?.products_with_images ?? 0) / Math.max(1, metrics?.total_products ?? 1)) * 100)}% coverage`}
+          icon={<ImageIcon className="w-4 h-4 text-blue-400" />}
         />
         <StatCard
-          title="Awin Products Streamed"
-          value={metrics?.provider_offers?.awin ?? 0}
-          subtitle="Approved Datafeeds"
-          icon={<Sparkles className="w-4 h-4" />}
+          title="Verified Retailers"
+          value={metrics?.total_retailers ?? 0}
+          subtitle={`Across ${metrics?.total_markets ?? 35} markets`}
+          icon={<Store className="w-4 h-4 text-indigo-400" />}
         />
       </div>
+
+      {/* Approved Awin Programmes Management Card */}
+      <Card className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-slate-900 text-teal-400 border border-slate-800">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-200">Awin Approved Programmes Feed Management</h3>
+              <p className="text-[11px] text-slate-500 font-mono">Real-time GZIP streaming decompression & canonical normalization</p>
+            </div>
+          </div>
+          <Badge variant="success" dot>8 Programmes Approved</Badge>
+        </div>
+
+        {/* Action output banner */}
+        {actionOutput && (
+          <div className="p-3.5 bg-slate-950 border border-teal-900/50 rounded-xl text-xs space-y-1.5 font-mono text-slate-300">
+            <div className="flex items-center justify-between">
+              <span className="text-teal-400 font-semibold flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                {actionOutput.programmeName} — {actionOutput.action.toUpperCase()} COMPLETED ({actionOutput.data.latency_ms}ms)
+              </span>
+              <span className="text-slate-500">Job #{actionOutput.data.job_id}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
+              <div><span className="text-slate-500">Read:</span> {actionOutput.data.discovered}</div>
+              <div><span className="text-slate-500">Imported:</span> <span className="text-teal-400 font-bold">{actionOutput.data.imported}</span></div>
+              <div><span className="text-slate-500">Created:</span> {actionOutput.data.created}</div>
+              <div><span className="text-slate-500">Matched:</span> {actionOutput.data.matched}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Programmes Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-800 text-[11px] font-semibold text-slate-400">
+                <th className="pb-2.5 font-medium">Merchant / Programme</th>
+                <th className="pb-2.5 font-medium">Awin ID</th>
+                <th className="pb-2.5 font-medium">Market</th>
+                <th className="pb-2.5 font-medium">Commission</th>
+                <th className="pb-2.5 font-medium">Feed Status</th>
+                <th className="pb-2.5 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300">
+              {(metrics?.approved_programmes || []).map((prog: any) => {
+                const isRunning = isActionRunning && activeProgrammeId === prog.external_programme_id;
+                const marketCode = (prog.network_metadata?.market || 'de').toUpperCase();
+                return (
+                  <tr key={prog.id} className="hover:bg-slate-900/50 transition-colors">
+                    <td className="py-3 font-sans font-medium text-slate-200">
+                      {prog.name}
+                    </td>
+                    <td className="py-3 text-slate-400">{prog.external_programme_id}</td>
+                    <td className="py-3">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">
+                        {marketCode} · {prog.currency}
+                      </span>
+                    </td>
+                    <td className="py-3 text-emerald-400">{prog.commission_value}%</td>
+                    <td className="py-3">
+                      <Badge variant="success">Active Feed</Badge>
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={isRunning}
+                          onClick={() => handleProgrammeAction(prog, 'dry_run')}
+                        >
+                          Dry Run
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={isRunning}
+                          onClick={() => handleProgrammeAction(prog, 'ingest_100')}
+                          icon={<Play className="w-3 h-3" />}
+                        >
+                          Ingest 100
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={isRunning}
+                          onClick={() => handleProgrammeAction(prog, 'ingest_1000')}
+                        >
+                          Ingest 1,000
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {/* Provider Bulk Ingestion Control Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -191,7 +306,7 @@ export const IngestionCenter: React.FC = () => {
                 <input
                   type="number"
                   min={1}
-                  max={250}
+                  max={500}
                   value={cjMax}
                   onChange={(e) => setCjMax(Number(e.target.value))}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
@@ -231,106 +346,33 @@ export const IngestionCenter: React.FC = () => {
           </form>
         </Card>
 
-        {/* Awin Streaming Datafeed Pipeline */}
+        {/* Amazon Dual-Mode Status Card */}
         <Card className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-slate-900 text-teal-400 border border-slate-800">
-                <Sparkles className="w-4 h-4" />
+              <div className="p-2 rounded-xl bg-slate-900 text-amber-400 border border-slate-800">
+                <ShoppingCart className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-200">Awin Create-a-Feed Streaming Pipeline</h3>
-                <p className="text-[11px] text-slate-500 font-mono">productdata.awin.com · GZIP Decompression</p>
+                <h3 className="text-sm font-bold text-slate-200">Amazon Associates Integration</h3>
+                <p className="text-[11px] text-slate-500 font-mono">Mode 1: Active Manual URL Import | Mode 2: Dormant PA-API</p>
               </div>
             </div>
-            <Badge variant="success" dot>Operational</Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="success">Mode 1: Active</Badge>
+              <Badge variant="neutral">Mode 2: Dormant</Badge>
+            </div>
           </div>
 
-          <form onSubmit={handleStartAwin} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Target Approved Advertiser">
-                <select
-                  value={awinAdvertiserId}
-                  onChange={(e) => setAwinAdvertiserId(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="25962">BlazeVideo DE (DE · EUR · 5.65%)</option>
-                  <option value="8800">mcdaekonline DK (DK · DKK · 3.03%)</option>
-                  <option value="57897">Geekbuying DE (DE · EUR · 3.66%)</option>
-                  <option value="75408">Nothingprojector (Global · USD · 1.25%)</option>
-                  <option value="90211">Fast Technology (Global · USD · 1.19%)</option>
-                </select>
-              </FormField>
-
-              <FormField label="Target Market">
-                <select
-                  value={awinMarket}
-                  onChange={(e) => setAwinMarket(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="de">Germany (DE · EUR)</option>
-                  <option value="dk">Denmark (DK · DKK)</option>
-                  <option value="us">United States (US · USD)</option>
-                  <option value="gb">United Kingdom (GB · GBP)</option>
-                </select>
-              </FormField>
-            </div>
-
-            <FormField label="Stream Target (Max Products)">
-              <input
-                type="number"
-                min={1}
-                max={250}
-                value={awinMax}
-                onChange={(e) => setAwinMax(Number(e.target.value))}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-              />
-            </FormField>
-
-            {awinResult && (
-              <div className="p-3 bg-slate-950 border border-teal-900/50 rounded-xl text-xs space-y-1 font-mono text-slate-300">
-                <div className="flex items-center gap-2 text-teal-400 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Awin Stream Completed ({awinResult.latency_ms}ms)
-                </div>
-                <p>Imported: <span className="text-teal-400 font-bold">{awinResult.imported}</span> (Created: {awinResult.created} · Matched: {awinResult.matched})</p>
-                <p className="text-slate-500">Rows Examined: {awinResult.discovered} | Skipped: {awinResult.skipped} | Failed: {awinResult.failed}</p>
-              </div>
-            )}
-
-            <div className="flex justify-end pt-2">
-              <Button
-                type="submit"
-                isLoading={isAwinRunning}
-                icon={<Play className="w-3.5 h-3.5" />}
-              >
-                Execute Awin Stream Ingestion
-              </Button>
-            </div>
-          </form>
+          <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2 text-xs text-slate-400">
+            <p className="font-semibold text-slate-200">Amazon Associates Integration Architecture:</p>
+            <ul className="list-disc pl-4 space-y-1 text-slate-400">
+              <li>Mode 1 (Manual Import): Validates product URLs, parses ASIN, detects regional marketplace, attaches associate tag, and matches canonical product.</li>
+              <li>Mode 2 (PA-API v5): Dormant until official PA-API eligibility is achieved (zero HTML scraping).</li>
+            </ul>
+          </div>
         </Card>
       </div>
-
-      {/* Amazon Dual-Mode Status Card */}
-      <Card className="space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-slate-900 text-amber-400 border border-slate-800">
-              <ShoppingCart className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-200">Amazon Associates Integration</h3>
-              <p className="text-[11px] text-slate-500 font-mono">Dual-Mode: Mode 1 (Active Manual URL Import) | Mode 2 (Dormant PA-API)</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="neutral">Mode 2: NOT CONFIGURED / NOT ELIGIBLE</Badge>
-            <Badge variant="success">Mode 1: Active</Badge>
-          </div>
-        </div>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          Amazon Mode 1 operates via URL/ASIN parsing with automated associate tag injection and canonical matching (zero HTML scraping). Mode 2 PA-API is dormant until eligible.
-        </p>
-      </Card>
 
       {/* Recent Ingestion Batch Jobs */}
       <div className="space-y-3">

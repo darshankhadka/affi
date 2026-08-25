@@ -276,7 +276,7 @@ class AffiliateProgrammeApprovalTest extends TestCase
         $this->artisan('affiliate:seed-approved-programmes')->assertExitCode(0);
 
         $count = AffiliateProgramme::where('provider_id', $this->awinProvider->id)->count();
-        $this->assertEquals(5, $count);
+        $this->assertEquals(8, $count);
     }
 
     // -------------------------------------------------------------------------

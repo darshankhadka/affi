@@ -592,7 +592,7 @@ class AwinDatafeedService
                 $stream = fopen('php://memory', 'r+');
                 fwrite($stream, $line);
                 rewind($stream);
-                $rawH = fgetcsv($stream, 0, ',');
+                $rawH = fgetcsv($stream, 0, ',', '"', '\\');
                 fclose($stream);
 
                 if (!empty($rawH) && is_array($rawH)) {
@@ -608,7 +608,7 @@ class AwinDatafeedService
             $stream = fopen('php://memory', 'r+');
             fwrite($stream, $line);
             rewind($stream);
-            $row = fgetcsv($stream, 0, ',');
+            $row = fgetcsv($stream, 0, ',', '"', '\\');
             fclose($stream);
 
             if (!is_array($row) || empty($row)) {

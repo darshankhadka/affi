@@ -454,18 +454,27 @@ class BulkIngestionService
             ->limit(10)
             ->get();
 
+        $approvedProgrammes = AffiliateProgramme::where('status', 'approved')
+            ->with(['provider'])
+            ->get();
+
         return [
             'total_products' => Product::count(),
             'published_products' => Product::where('status', 'published')->count(),
+            'products_added_today' => Product::whereDate('created_at', today())->count(),
             'total_offers' => Offer::count(),
             'active_offers' => Offer::where('is_active', true)->count(),
+            'offers_added_today' => Offer::whereDate('created_at', today())->count(),
             'total_retailers' => Retailer::count(),
             'total_markets' => Market::where('is_active', true)->count(),
+            'products_with_images' => Product::whereNotNull('primary_image_id')->count(),
+            'products_without_gtin' => Product::whereNull('canonical_ean')->whereNull('canonical_upc')->count(),
             'provider_offers' => [
                 'cj' => $cjOffersCount,
                 'awin' => $awinOffersCount,
                 'amazon' => $amazonOffersCount,
             ],
+            'approved_programmes' => $approvedProgrammes,
             'recent_jobs' => $recentJobs,
         ];
     }
