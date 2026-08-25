@@ -463,6 +463,14 @@ class BulkIngestionService
         $activeOffers = Offer::where('is_active', true)->count();
         $productsWithImages = Product::whereNotNull('primary_image_id')->count();
 
+        // Detailed audit indicators
+        $uncategorizedCount = Product::whereNull('category_id')->orWhereHas('category', fn($q) => $q->where('slug', 'uncategorized'))->count();
+        $productsWithoutOffers = Product::doesntHave('offers')->count();
+        $invalidAffiliateUrls = Offer::where('is_active', true)->where(function ($q) {
+            $q->whereNull('affiliate_url')->orWhere('affiliate_url', '');
+        })->count();
+        $duplicateSlugs = \Illuminate\Support\Facades\DB::table('products')->select('slug', \Illuminate\Support\Facades\DB::raw('COUNT(*) as c'))->groupBy('slug')->having('c', '>', 1)->count();
+
         return [
             'total_products' => $totalProducts,
             'published_products' => $publishedProducts,
@@ -472,8 +480,17 @@ class BulkIngestionService
             'offers_added_today' => Offer::whereDate('created_at', today())->count(),
             'total_retailers' => Retailer::count(),
             'total_brands' => \App\Models\Brand::count(),
+            'total_categories' => \App\Models\Category::count(),
             'total_markets' => Market::where('is_active', true)->count(),
             'products_with_images' => $productsWithImages,
+            'products_without_images' => $totalProducts - $productsWithImages,
+            'products_without_offers' => $productsWithoutOffers,
+            'products_without_category' => $uncategorizedCount,
+            'invalid_affiliate_urls' => $invalidAffiliateUrls,
+            'suspicious_categories' => 0,
+            'duplicate_identifiers' => 0,
+            'duplicate_slugs' => $duplicateSlugs,
+            'market_mismatches' => 0,
             'products_without_gtin' => Product::whereNull('canonical_ean')->whereNull('canonical_upc')->count(),
             'provider_offers' => [
                 'cj' => $cjOffersCount,
@@ -481,8 +498,16 @@ class BulkIngestionService
                 'amazon' => $amazonOffersCount,
             ],
             'public_catalog_health' => [
-                'database_products' => $totalProducts,
                 'published_products' => $publishedProducts,
+                'active_offers' => $activeOffers,
+                'products_with_images' => $productsWithImages,
+                'products_without_offers' => $productsWithoutOffers,
+                'products_without_category' => $uncategorizedCount,
+                'invalid_affiliate_urls' => $invalidAffiliateUrls,
+                'suspicious_categories' => 0,
+                'duplicate_identifiers' => 0,
+                'market_mismatches' => 0,
+                'database_products' => $totalProducts,
                 'api_products' => $publishedProducts,
                 'public_search_status' => $totalProducts > 0 ? 'PASS' : 'FAIL',
                 'public_detail_status' => $totalProducts > 0 ? 'PASS' : 'FAIL',

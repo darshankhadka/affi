@@ -39,6 +39,7 @@ Route::get('/markets/{code}', [MarketController::class, 'show']);
 // Categories & Brands
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{slug}', [CategoryController::class, 'show']);
+Route::get('/categories/{slug}/products', [CategoryController::class, 'products']);
 Route::get('/brands', [BrandController::class, 'index']);
 Route::get('/brands/{slug}', [BrandController::class, 'show']);
 

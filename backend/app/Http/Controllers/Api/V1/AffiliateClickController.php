@@ -37,7 +37,7 @@ class AffiliateClickController extends BaseApiController
             if ($request->wantsJson()) {
                 return $this->error('The selected retailer offer is currently unavailable.', 404);
             }
-            return redirect(config('app.url', '/'));
+            abort(404, 'The selected retailer offer is currently unavailable.');
         }
 
         // Programme approval gate.

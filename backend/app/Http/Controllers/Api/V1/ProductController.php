@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Resources\Api\V1\ProductDetailResource;
 use App\Http\Resources\Api\V1\ProductListResource;
+use App\Models\Category;
 use App\Models\Market;
 use App\Models\Product;
 use App\Services\SEO\MetadataService;
@@ -53,11 +54,24 @@ class ProductController extends BaseApiController
             },
         ]);
 
-        // Category filter
-        if ($categorySlug = $request->input('category')) {
-            $query->whereHas('category', function ($q) use ($categorySlug) {
-                $q->where('slug', $categorySlug);
-            });
+        // Category filter (supports category slug, ID, and descendant categories)
+        if ($categoryParam = $request->input('category')) {
+            $category = is_numeric($categoryParam)
+                ? Category::find($categoryParam)
+                : Category::where('slug', $categoryParam)->first();
+
+            if ($category) {
+                $categoryIds = Category::where('parent_id', $category->id)
+                    ->pluck('id')
+                    ->push($category->id)
+                    ->toArray();
+
+                $query->whereIn('category_id', $categoryIds);
+            } else {
+                $query->whereHas('category', function ($q) use ($categoryParam) {
+                    $q->where('slug', $categoryParam);
+                });
+            }
         }
 
         // Brand filter
@@ -67,18 +81,35 @@ class ProductController extends BaseApiController
             });
         }
 
-        // Search query
-        if ($search = $request->input('q')) {
+        // Search query across name, brand, category, model, and identifiers
+        if ($search = trim((string) $request->input('q'))) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('model_number', 'like', "%{$search}%")
-                  ->orWhere('short_description', 'like', "%{$search}%");
+                  ->orWhere('short_description', 'like', "%{$search}%")
+                  ->orWhere('canonical_ean', 'like', "%{$search}%")
+                  ->orWhere('canonical_upc', 'like', "%{$search}%")
+                  ->orWhere('canonical_mpn', 'like', "%{$search}%")
+                  ->orWhereHas('brand', function ($b) use ($search) {
+                      $b->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('category', function ($c) use ($search) {
+                      $c->where('name', 'like', "%{$search}%");
+                  });
             });
         }
 
         // Sorting
-        $sort = $request->input('sort', 'newest');
+        $sort = $request->input('sort', $request->filled('q') ? 'relevance' : 'newest');
         match ($sort) {
+            'relevance' => $search ? $query->orderByRaw(
+                "CASE 
+                    WHEN name LIKE ? THEN 1 
+                    WHEN name LIKE ? THEN 2 
+                    ELSE 3 
+                END",
+                ["{$search}%", "%{$search}%"]
+            )->latest() : $query->latest(),
             'oldest' => $query->oldest(),
             'name_asc' => $query->orderBy('name', 'asc'),
             'name_desc' => $query->orderBy('name', 'desc'),

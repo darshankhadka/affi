@@ -24,10 +24,15 @@ class Product extends Model
         'canonical_ean',
         'canonical_mpn',
         'primary_image_id',
+        'category_confidence',
+        'category_source',
+        'merchant_category',
+        'taxonomy_version',
     ];
 
     protected $casts = [
         'release_date' => 'date',
+        'category_confidence' => 'float',
     ];
 
     public function brand()

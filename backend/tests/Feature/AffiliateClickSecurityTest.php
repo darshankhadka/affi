@@ -73,6 +73,6 @@ class AffiliateClickSecurityTest extends TestCase
     public function test_inactive_or_missing_offer_redirect_fails_gracefully(): void
     {
         $response = $this->get('/api/v1/affiliates/out/999999');
-        $response->assertRedirect();
+        $response->assertStatus(404);
     }
 }

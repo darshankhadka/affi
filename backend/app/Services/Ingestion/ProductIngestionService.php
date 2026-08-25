@@ -28,9 +28,11 @@ class ProductIngestionService
         protected ProductNormalizer $normalizer,
         protected ProductMatchingService $matchingService,
         protected BestPriceService $bestPriceService,
-        protected ?RetailerIdentityService $retailerIdentityService = null
+        protected ?RetailerIdentityService $retailerIdentityService = null,
+        protected ?\App\Services\Taxonomy\CategoryClassifierService $classifier = null
     ) {
         $this->retailerIdentityService ??= new RetailerIdentityService();
+        $this->classifier ??= new \App\Services\Taxonomy\CategoryClassifierService();
     }
 
     /**
@@ -68,13 +70,23 @@ class ProductIngestionService
 
             if (!$product) {
                 $brand = $this->resolveBrand($dto->brandName);
-                $category = $this->resolveCategory($dto->categorySlug);
+                $classification = $this->classifier->classify([
+                    'name' => $dto->name,
+                    'description' => $dto->description ?? $dto->shortDescription,
+                    'brand_name' => $brand->name,
+                    'model_number' => $dto->modelNumber,
+                    'merchant_category' => $dto->categorySlug,
+                ]);
 
                 $slug = $this->uniqueProductSlug($dto->name);
 
                 $product = Product::create([
                     'brand_id' => $brand->id,
-                    'category_id' => $category?->id, // nullable: no fabricated fallback id
+                    'category_id' => $classification['category_id'],
+                    'category_confidence' => $classification['confidence'],
+                    'category_source' => $classification['source'],
+                    'merchant_category' => $dto->categorySlug,
+                    'taxonomy_version' => $classification['taxonomy_version'],
                     'name' => $dto->name,
                     'slug' => $slug,
                     'model_number' => $dto->modelNumber,

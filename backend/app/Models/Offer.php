@@ -19,6 +19,7 @@ class Offer extends Model
         'sku',
         'external_offer_key',
         'title',
+        'merchant_category',
         'affiliate_url',
         'original_url',
         'price',

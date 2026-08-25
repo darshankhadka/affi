@@ -50,4 +50,18 @@ class CategoryController extends BaseApiController
 
         return $this->success(new CategoryResource($category));
     }
+
+    /**
+     * Get paginated products for a category
+     */
+    public function products(Request $request, string $slug): JsonResponse
+    {
+        $category = Category::where('slug', $slug)->first();
+        if (!$category) {
+            return $this->error('Category not found.', 404);
+        }
+
+        $request->merge(['category' => $category->slug]);
+        return app(ProductController::class)->index($request);
+    }
 }
