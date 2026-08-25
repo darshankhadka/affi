@@ -24,8 +24,18 @@ export function getSiteUrl(): string {
 
 /** API base URL — use ONLY for data fetching, NEVER in canonical/OG/sitemap */
 export function getApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      const configured = process.env.NEXT_PUBLIC_API_URL;
+      if (!configured || configured.includes('arikartech.com')) {
+        return 'http://127.0.0.1:8000/api/v1';
+      }
+    }
+  }
+
   return (
-    process.env.NEXT_PUBLIC_API_URL || 'https://api.arikartech.com/api/v1'
+    process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1'
   ).replace(/\/+$/, '');
 }
 

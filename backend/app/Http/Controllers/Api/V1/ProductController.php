@@ -47,8 +47,9 @@ class ProductController extends BaseApiController
             'primaryImage',
             'bestPrices' => function ($q) use ($market) {
                 if ($market) {
-                    $q->where('market_id', $market->id)->with('currency');
+                    $q->where('market_id', $market->id);
                 }
+                $q->with('currency');
             },
         ]);
 
@@ -84,7 +85,7 @@ class ProductController extends BaseApiController
             default => $query->latest(),
         };
 
-        $perPage = min((int) $request->input('per_page', 20), 50);
+        $perPage = min(max((int) $request->input('per_page', 20), 1), 500);
         $products = $query->paginate($perPage);
 
         // Record search query intelligence
@@ -188,8 +189,9 @@ class ProductController extends BaseApiController
                 'specifications',
                 'bestPrices' => function ($q) use ($market) {
                     if ($market) {
-                        $q->where('market_id', $market->id)->with('currency');
+                        $q->where('market_id', $market->id);
                     }
+                    $q->with('currency');
                 },
             ])
             ->get();

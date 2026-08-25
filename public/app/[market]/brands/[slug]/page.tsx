@@ -4,7 +4,7 @@ import { CANONICAL_MARKETS, CANONICAL_BRANDS, getBrandDef } from '@/lib/catalog'
 import { Tag } from 'lucide-react';
 import { BrandProductsClient } from './BrandProductsClient';
 
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 interface BrandPageProps {
   params: Promise<{

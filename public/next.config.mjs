@@ -4,11 +4,12 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const isStaticExport = process.env.STATIC_EXPORT === 'true' || process.env.NEXT_OUTPUT === 'export';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Static export for shared hosting / cPanel.
-  // `next build` will generate the complete static site in /out.
-  output: 'export',
+  // Only enforce static export when building for static hosting
+  ...(isStaticExport ? { output: 'export' } : {}),
 
   // Keep the project root correctly resolved for tracing/build tooling.
   outputFileTracingRoot: path.join(__dirname, '../'),

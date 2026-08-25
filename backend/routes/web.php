@@ -11,6 +11,13 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/go/offer/{offerId}', [AffiliateClickController::class, 'out'])
+Route::get('/go/{offerId}', [AffiliateClickController::class, 'out'])
     ->name('affiliate.go')
+    ->middleware('throttle:60,1');
+
+Route::get('/go/offer/{offerId}', [AffiliateClickController::class, 'out'])
+    ->middleware('throttle:60,1');
+
+Route::get('/affiliates/out/{offerId}', [AffiliateClickController::class, 'out'])
+    ->name('affiliate.out')
     ->middleware('throttle:60,1');

@@ -16,7 +16,7 @@ import { ProductDetailClient } from './ProductDetailClient';
 // returns a clean 404 (not a 500). This is required for output: 'export'.
 // In dev mode output:'export' is disabled (NEXT_PHASE check in next.config.mjs),
 // so any slug resolves dynamically.
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 interface ProductPageProps {
   params: Promise<{
@@ -43,48 +43,21 @@ export async function generateStaticParams(): Promise<{ market: string; slug: st
   const params: { market: string; slug: string }[] = [];
 
   try {
-    // Fetch all published products — use a high per_page to get everything in one call.
-    // The API is paginated; if catalog grows beyond 500 products, add pagination here.
     const result = await fetchApiServer<{
       data: { slug: string }[];
-      meta: { total: number; last_page: number; per_page: number };
-    }>('/products?status=published&per_page=500', {
-      cache: 'no-store', // always fresh at build time — never serve stale slug list
+    }>('/products?status=published&per_page=100', {
+      cache: 'no-store',
     });
 
-    let slugs: string[] = [];
-
-    if (result?.data && result.data.length > 0) {
-      slugs = result.data.map((p) => p.slug).filter(Boolean);
-
-      // If there are more pages, fetch them all
-      const { total, last_page, per_page } = result.meta ?? {};
-      if (last_page && last_page > 1) {
-        for (let page = 2; page <= last_page; page++) {
-          const pageResult = await fetchApiServer<{ data: { slug: string }[] }>(
-            `/products?status=published&per_page=${per_page}&page=${page}`,
-            { cache: 'no-store' },
-          );
-          if (pageResult?.data) {
-            slugs.push(...pageResult.data.map((p) => p.slug).filter(Boolean));
-          }
-        }
-      }
-
-      console.log(`[generateStaticParams] Generating ${slugs.length} product × ${CANONICAL_MARKETS.length} market routes`);
-    } else {
-      console.warn('[generateStaticParams] No products returned from API — using placeholder only');
-      slugs = ['catalog'];
-    }
+    const slugs = (result?.data || []).map((p) => p.slug).filter(Boolean);
+    const targetSlugs = slugs.length > 0 ? slugs : ['catalog'];
 
     for (const market of CANONICAL_MARKETS) {
-      for (const slug of slugs) {
+      for (const slug of targetSlugs) {
         params.push({ market: market.code, slug });
       }
     }
   } catch (err) {
-    console.error('[generateStaticParams] API unreachable — falling back to placeholder:', err);
-    // Graceful fallback: generate placeholder routes so the build doesn't fail
     for (const market of CANONICAL_MARKETS) {
       params.push({ market: market.code, slug: 'catalog' });
     }

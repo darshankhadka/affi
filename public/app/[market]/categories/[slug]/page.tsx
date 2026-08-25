@@ -4,7 +4,7 @@ import { CANONICAL_MARKETS, CANONICAL_CATEGORIES, getCategoryDef } from '@/lib/c
 import { Layers } from 'lucide-react';
 import { CategoryProductsClient } from './CategoryProductsClient';
 
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 interface CategoryPageProps {
   params: Promise<{

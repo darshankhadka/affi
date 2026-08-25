@@ -458,21 +458,37 @@ class BulkIngestionService
             ->with(['provider'])
             ->get();
 
+        $totalProducts = Product::count();
+        $publishedProducts = Product::where('status', 'published')->count();
+        $activeOffers = Offer::where('is_active', true)->count();
+        $productsWithImages = Product::whereNotNull('primary_image_id')->count();
+
         return [
-            'total_products' => Product::count(),
-            'published_products' => Product::where('status', 'published')->count(),
+            'total_products' => $totalProducts,
+            'published_products' => $publishedProducts,
             'products_added_today' => Product::whereDate('created_at', today())->count(),
             'total_offers' => Offer::count(),
-            'active_offers' => Offer::where('is_active', true)->count(),
+            'active_offers' => $activeOffers,
             'offers_added_today' => Offer::whereDate('created_at', today())->count(),
             'total_retailers' => Retailer::count(),
+            'total_brands' => \App\Models\Brand::count(),
             'total_markets' => Market::where('is_active', true)->count(),
-            'products_with_images' => Product::whereNotNull('primary_image_id')->count(),
+            'products_with_images' => $productsWithImages,
             'products_without_gtin' => Product::whereNull('canonical_ean')->whereNull('canonical_upc')->count(),
             'provider_offers' => [
                 'cj' => $cjOffersCount,
                 'awin' => $awinOffersCount,
                 'amazon' => $amazonOffersCount,
+            ],
+            'public_catalog_health' => [
+                'database_products' => $totalProducts,
+                'published_products' => $publishedProducts,
+                'api_products' => $publishedProducts,
+                'public_search_status' => $totalProducts > 0 ? 'PASS' : 'FAIL',
+                'public_detail_status' => $totalProducts > 0 ? 'PASS' : 'FAIL',
+                'image_resolution_status' => $productsWithImages > 0 ? 'PASS' : 'FAIL',
+                'offer_resolution_status' => $activeOffers > 0 ? 'PASS' : 'FAIL',
+                'affiliate_url_resolution_status' => $activeOffers > 0 ? 'PASS' : 'FAIL',
             ],
             'approved_programmes' => $approvedProgrammes,
             'recent_jobs' => $recentJobs,

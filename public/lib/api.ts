@@ -13,7 +13,25 @@ export { getSiteUrl, getApiUrl, buildProductUrl, productPath, buildAffiliateUrl 
 // ---------------------------------------------------------------------------
 
 function apiBase(): string {
-  const url = process.env.NEXT_PUBLIC_API_URL || 'https://api.arikartech.com/api/v1';
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      const configured = process.env.NEXT_PUBLIC_API_URL;
+      if (!configured || configured.includes('arikartech.com')) {
+        return 'http://127.0.0.1:8000/api/v1';
+      }
+    }
+  }
+
+  if (process.env.INTERNAL_API_URL) {
+    return process.env.INTERNAL_API_URL.replace(/\/+$/, '');
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    return (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1').replace(/\/+$/, '');
+  }
+
+  const url = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
   return url.replace(/\/+$/, '');
 }
 
