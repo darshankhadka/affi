@@ -221,4 +221,76 @@ class AffiliateAdminController extends BaseApiController
             'output' => trim($output),
         ], 'Provider sync batch completed.');
     }
+
+    /**
+     * Validate an Amazon product/affiliate URL and parse ASIN/metadata (Mode 1)
+     */
+    public function validateAmazonUrl(Request $request, \App\Services\Affiliate\AmazonManualImportService $importService): JsonResponse
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'string', 'url'],
+            'associate_tag' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $result = $importService->validateAndParseUrl($validated['url'], $validated['associate_tag'] ?? null);
+
+        if (!$result['valid']) {
+            return $this->error($result['error'] ?? 'Invalid Amazon URL', 422, $result);
+        }
+
+        return $this->success($result, 'Amazon URL validated.');
+    }
+
+    /**
+     * Import or link an Amazon product offer manually (Mode 1)
+     */
+    public function importAmazonProduct(Request $request, \App\Services\Affiliate\AmazonManualImportService $importService): JsonResponse
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'string', 'url'],
+            'name' => ['required', 'string', 'max:255'],
+            'price' => ['required', 'numeric', 'min:0.01'],
+            'original_price' => ['nullable', 'numeric', 'min:0.01'],
+            'brand_name' => ['nullable', 'string', 'max:100'],
+            'model_number' => ['nullable', 'string', 'max:100'],
+            'category_slug' => ['nullable', 'string', 'exists:categories,slug'],
+            'market_code' => ['nullable', 'string', 'exists:markets,code'],
+            'currency_code' => ['nullable', 'string', 'exists:currencies,code'],
+            'availability' => ['nullable', 'string', 'in:in_stock,out_of_stock,preorder'],
+            'condition' => ['nullable', 'string', 'in:new,refurbished,used,open_box'],
+            'image_url' => ['nullable', 'url'],
+            'description' => ['nullable', 'string'],
+            'upc' => ['nullable', 'string', 'max:50'],
+            'ean' => ['nullable', 'string', 'max:50'],
+            'mpn' => ['nullable', 'string', 'max:100'],
+            'associate_tag' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $result = $importService->import($validated);
+
+        if (!$result['success']) {
+            return $this->error($result['error'] ?? 'Amazon import failed', 422);
+        }
+
+        $this->auditLogger->log('amazon.manual_import', $result['offer'], null, [
+            'product_id' => $result['product']?->id,
+            'offer_id' => $result['offer']?->id,
+            'action' => $result['action'],
+        ]);
+
+        return $this->success([
+            'action' => $result['action'],
+            'product' => [
+                'id' => $result['product']?->id,
+                'name' => $result['product']?->name,
+                'slug' => $result['product']?->slug,
+            ],
+            'offer' => [
+                'id' => $result['offer']?->id,
+                'price' => $result['offer']?->price,
+                'sku' => $result['offer']?->sku,
+                'affiliate_url' => $result['offer']?->affiliate_url,
+            ],
+        ], 'Amazon product imported successfully.', 201);
+    }
 }

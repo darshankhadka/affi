@@ -5,7 +5,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { FormField } from '../components/ui/FormField';
-import { Network, Settings2, Play, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Network, Settings2, Play, CheckCircle2, AlertCircle, RefreshCw, ShoppingCart, ArrowRight } from 'lucide-react';
 
 export const AffiliateProviders: React.FC = () => {
   const [providers, setProviders] = useState<any[]>([]);
@@ -14,6 +14,30 @@ export const AffiliateProviders: React.FC = () => {
   const [syncProvider, setSyncProvider] = useState<any | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncOutput, setSyncOutput] = useState<string | null>(null);
+
+  // Amazon Manual Import State (Mode 1)
+  const [isAmazonImportOpen, setIsAmazonImportOpen] = useState(false);
+  const [amazonUrl, setAmazonUrl] = useState('');
+  const [isValidatingAmazon, setIsValidatingAmazon] = useState(false);
+  const [amazonValidation, setAmazonValidation] = useState<any | null>(null);
+  const [amazonFormData, setAmazonFormData] = useState({
+    name: '',
+    price: '',
+    original_price: '',
+    brand_name: '',
+    model_number: '',
+    category_slug: 'laptops',
+    market_code: 'us',
+    currency_code: 'USD',
+    availability: 'in_stock',
+    condition: 'new',
+    image_url: '',
+    upc: '',
+    ean: '',
+    mpn: '',
+  });
+  const [isImportingAmazon, setIsImportingAmazon] = useState(false);
+  const [amazonImportResult, setAmazonImportResult] = useState<any | null>(null);
 
   // Dynamic credentials state
   const [configFields, setConfigFields] = useState<Record<string, string>>({});
@@ -166,13 +190,73 @@ export const AffiliateProviders: React.FC = () => {
     },
   ];
 
+  const handleValidateAmazonUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amazonUrl) return;
+    setIsValidatingAmazon(true);
+    setAmazonValidation(null);
+    setAmazonImportResult(null);
+    try {
+      const res = await api.post('/admin/affiliates/amazon/validate-url', {
+        url: amazonUrl,
+      });
+      setAmazonValidation(res.data.data);
+      setAmazonFormData(prev => ({
+        ...prev,
+        market_code: res.data.data.market_code || 'us',
+        currency_code: res.data.data.market_code === 'uk' || res.data.data.market_code === 'gb' ? 'GBP' : (res.data.data.market_code === 'de' ? 'EUR' : 'USD'),
+      }));
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Invalid Amazon URL');
+    } finally {
+      setIsValidatingAmazon(false);
+    }
+  };
+
+  const handleImportAmazon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amazonUrl || !amazonFormData.name || !amazonFormData.price) return;
+    setIsImportingAmazon(true);
+    try {
+      const res = await api.post('/admin/affiliates/amazon/import', {
+        url: amazonUrl,
+        ...amazonFormData,
+        price: parseFloat(amazonFormData.price),
+        original_price: amazonFormData.original_price ? parseFloat(amazonFormData.original_price) : undefined,
+      });
+      setAmazonImportResult(res.data.data);
+      alert('Amazon product offer successfully created/matched in canonical catalog!');
+      fetchProviders();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to import Amazon product offer.');
+    } finally {
+      setIsImportingAmazon(false);
+    }
+  };
+
+  const openAmazonModal = () => {
+    setIsAmazonImportOpen(true);
+    setAmazonUrl('');
+    setAmazonValidation(null);
+    setAmazonImportResult(null);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-100 tracking-tight">Affiliate Providers</h2>
-        <p className="text-xs text-slate-400 mt-1">
-          Premier network connectors (Awin, CJ Affiliate, Impact, Amazon Deferred). Disconnected by default until credentials are set.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-100 tracking-tight">Affiliate Providers</h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Premier network connectors (Awin, CJ Affiliate, Impact, Amazon). Real status and bounded sync.
+          </p>
+        </div>
+        <Button
+          variant="primary"
+          onClick={openAmazonModal}
+          icon={<ShoppingCart className="w-4 h-4" />}
+        >
+          Import Amazon URL (Mode 1)
+        </Button>
       </div>
 
       <DataTable
@@ -371,6 +455,159 @@ export const AffiliateProviders: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Mode 1: Amazon Manual Import Modal */}
+      <Modal
+        isOpen={isAmazonImportOpen}
+        onClose={() => setIsAmazonImportOpen(false)}
+        title="Manual Amazon Affiliate Import (Mode 1)"
+        maxWidth="lg"
+      >
+        <div className="space-y-6">
+          <form onSubmit={handleValidateAmazonUrl} className="space-y-3">
+            <FormField label="Amazon Product or Affiliate URL">
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="https://www.amazon.com/dp/B0CX23V2ZP..."
+                  value={amazonUrl}
+                  onChange={(e) => setAmazonUrl(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                  required
+                />
+                <Button type="submit" isLoading={isValidatingAmazon} icon={<ArrowRight className="w-4 h-4" />}>
+                  Validate URL
+                </Button>
+              </div>
+            </FormField>
+          </form>
+
+          {amazonValidation && (
+            <div className="space-y-4 pt-4 border-t border-slate-800">
+              <div className="p-3 bg-slate-950 border border-emerald-900/50 rounded-xl text-xs space-y-1">
+                <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                  <CheckCircle2 className="w-4 h-4" /> Validated ASIN: {amazonValidation.asin} ({amazonValidation.domain})
+                </div>
+                <p className="text-slate-400">Attached Tag: <span className="font-mono text-slate-200">{amazonValidation.associate_tag}</span></p>
+                {amazonValidation.existing_product && (
+                  <p className="text-amber-400">
+                    Matches existing catalog product: #{amazonValidation.existing_product.id} {amazonValidation.existing_product.name} ({amazonValidation.existing_product.match_type})
+                  </p>
+                )}
+              </div>
+
+              <form onSubmit={handleImportAmazon} className="space-y-4">
+                <FormField label="Product Title / Name *">
+                  <input
+                    type="text"
+                    value={amazonFormData.name}
+                    onChange={(e) => setAmazonFormData({ ...amazonFormData, name: e.target.value })}
+                    placeholder="e.g. Apple MacBook Pro 14 M3"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </FormField>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Price *">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={amazonFormData.price}
+                      onChange={(e) => setAmazonFormData({ ...amazonFormData, price: e.target.value })}
+                      placeholder="e.g. 1499.00"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                      required
+                    />
+                  </FormField>
+                  <FormField label="Original / RRP Price (Optional)">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={amazonFormData.original_price}
+                      onChange={(e) => setAmazonFormData({ ...amazonFormData, original_price: e.target.value })}
+                      placeholder="e.g. 1699.00"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </FormField>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Brand Name">
+                    <input
+                      type="text"
+                      value={amazonFormData.brand_name}
+                      onChange={(e) => setAmazonFormData({ ...amazonFormData, brand_name: e.target.value })}
+                      placeholder="e.g. Apple"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </FormField>
+                  <FormField label="Model Number">
+                    <input
+                      type="text"
+                      value={amazonFormData.model_number}
+                      onChange={(e) => setAmazonFormData({ ...amazonFormData, model_number: e.target.value })}
+                      placeholder="e.g. MRX33LL/A"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </FormField>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Target Market">
+                    <select
+                      value={amazonFormData.market_code}
+                      onChange={(e) => setAmazonFormData({ ...amazonFormData, market_code: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="us">United States (USD)</option>
+                      <option value="gb">United Kingdom (GBP)</option>
+                      <option value="de">Germany (EUR)</option>
+                      <option value="fr">France (EUR)</option>
+                      <option value="es">Spain (EUR)</option>
+                      <option value="it">Italy (EUR)</option>
+                      <option value="au">Australia (AUD)</option>
+                      <option value="ca">Canada (CAD)</option>
+                    </select>
+                  </FormField>
+
+                  <FormField label="Availability">
+                    <select
+                      value={amazonFormData.availability}
+                      onChange={(e) => setAmazonFormData({ ...amazonFormData, availability: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="in_stock">In Stock</option>
+                      <option value="out_of_stock">Out of Stock</option>
+                      <option value="preorder">Pre-order</option>
+                    </select>
+                  </FormField>
+                </div>
+
+                <FormField label="Image URL (Optional)">
+                  <input
+                    type="url"
+                    value={amazonFormData.image_url}
+                    onChange={(e) => setAmazonFormData({ ...amazonFormData, image_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </FormField>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                  <Button variant="secondary" type="button" onClick={() => setIsAmazonImportOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" isLoading={isImportingAmazon} icon={<CheckCircle2 className="w-4 h-4" />}>
+                    Save Amazon Offer
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );
